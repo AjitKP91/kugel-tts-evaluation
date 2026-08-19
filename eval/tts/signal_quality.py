@@ -71,18 +71,29 @@ def run(config: Config) -> dict:
 
     logger.info("=== Test 2.4: Audio Signal Quality ===")
 
-    # Kugel skip: PESQ/STOI/MCD require a same-speaker reference recording. The
-    # LJSpeech-vs-Kugel-voice speaker mismatch dominates the metric and makes it
-    # uninterpretable. Bypass entirely unless the operator has recorded a
-    # per-voice reference set and pointed at it via tts.kugel.reference_set_dir.
+    # PESQ/STOI/MCD require a *same-speaker* reference: synthesized audio vs a
+    # real recording of the same voice. A stock Kugel library voice has no such
+    # ground truth, so the test needs a matched-speaker reference set built by
+    # cloning a single-speaker corpus (LJSpeech) into a Kugel voice. Run
+    # scripts/clone_reference_voice.py to produce it, then set
+    # tts.kugel.reference_set_dir + reference_voice_id. Without it, skip.
+    #
+    # NOTE: when enabled, this measures how faithfully Kugel reproduces the
+    # cloned speaker (clone fidelity) — not the quality of a stock voice.
     provider = (getattr(config.tts, "provider", None) or "kugel").lower()
+    ref_dir = None
+    ref_voice_id = None
     if provider == "kugel":
-        ref_dir = getattr(config.tts.kugel, "reference_set_dir", None) if config.tts.kugel else None
+        kugel = config.tts.kugel
+        ref_dir = getattr(kugel, "reference_set_dir", None) if kugel else None
+        ref_voice_id = getattr(kugel, "reference_voice_id", None) if kugel else None
         if not ref_dir:
             logger.warning(
                 "Test 2.4 skipped for provider=kugel — no matched-speaker "
-                "reference set configured (tts.kugel.reference_set_dir is null). "
-                "Rely on Tests 2.1 and 2.2 for quality."
+                "reference set configured. Build one with "
+                "`python scripts/clone_reference_voice.py`, then set "
+                "tts.kugel.reference_set_dir + reference_voice_id. "
+                "Rely on Tests 2.1 and 2.2 for quality in the meantime."
             )
             return {
                 "test": "2.4",
@@ -91,51 +102,71 @@ def run(config: Config) -> dict:
                     "skipped": True,
                     "reason": "kugel_no_reference_set",
                     "note": (
-                        "PESQ/STOI/MCD require a same-speaker reference recording. "
-                        "Configure tts.kugel.reference_set_dir to enable."
+                        "PESQ/STOI/MCD require a same-speaker reference. Run "
+                        "scripts/clone_reference_voice.py to clone LJSpeech into "
+                        "a Kugel voice and enable this test."
                     ),
                 },
             }
 
     tts_client = build_tts_client(config)
 
-    # Load LJSpeech for matched reference
-    try:
-        from eval.utils import load_dataset_tmp
-        with load_dataset_tmp("keithito/lj_speech", "train", limit=50) as lj_items:
-            pass
-    except Exception as e:
-        logger.warning("LJSpeech not available: %s. Skipping matched-speaker metrics.", e)
-        lj_items = []
+    # Assemble the (text, reference_wav) pairs.
+    ref_items: list[dict] = []
+    if provider == "kugel":
+        # Cloned matched-speaker reference produced by clone_reference_voice.py.
+        ref_path = Path(ref_dir)
+        manifest_path = ref_path / "manifest.json"
+        if not manifest_path.exists():
+            logger.warning("reference_set_dir %s has no manifest.json — skipping.", ref_dir)
+            return {"test": "2.4", "name": "signal_quality",
+                    "results": {"skipped": True, "reason": "missing_manifest"}}
+        import json
+        manifest = json.loads(manifest_path.read_text())
+        ref_voice_id = ref_voice_id or manifest.get("voice_id")
+        for m in manifest.get("items", []):
+            wav = ref_path / m["wav"]
+            if wav.exists():
+                ref_items.append({"text": m["text"], "ref_wav": str(wav)})
+        logger.info("Loaded %d matched-speaker reference clips; cloned voice_id=%s",
+                    len(ref_items), ref_voice_id)
+    else:
+        # Riva/other path: use LJSpeech directly (original behaviour).
+        try:
+            from eval.utils import load_dataset_tmp
+            with load_dataset_tmp("keithito/lj_speech", "train", limit=50) as lj_items:
+                for i, item in enumerate(lj_items):
+                    text = item.get("normalized_text") or item.get("text", "")
+                    ref_audio = np.array(item["audio"]["array"], dtype=np.float32)
+                    ref_sr = item["audio"]["sampling_rate"]
+                    p = results_dir / f"ref_{i:04d}.wav"
+                    sf.write(str(p), ref_audio, ref_sr)
+                    ref_items.append({"text": text, "ref_wav": str(p), "_tmp": True})
+        except Exception as e:
+            logger.warning("LJSpeech not available: %s. Skipping Test 2.4.", e)
 
-    if not lj_items:
-        logger.warning(
-            "No matched-speaker reference available. "
-            "PESQ/STOI/MCD require same-speaker reference. "
-            "Skipping Test 2.4 — rely on Tests 2.1 and 2.2 for quality."
-        )
+    if not ref_items:
+        logger.warning("No reference clips available — skipping Test 2.4.")
         return {"test": "2.4", "name": "signal_quality", "results": {"skipped": True}}
 
     mcd_values = []
     pesq_values = []
     stoi_values = []
 
-    for i, item in enumerate(tqdm(lj_items, desc="Signal quality")):
-        text = item.get("normalized_text") or item.get("text", "")
-        ref_audio = np.array(item["audio"]["array"], dtype=np.float32)
-        ref_sr = item["audio"]["sampling_rate"]
-
-        ref_path = results_dir / f"ref_{i:04d}.wav"
+    for i, item in enumerate(tqdm(ref_items, desc="Signal quality")):
+        text = item["text"]
+        ref_path_i = item["ref_wav"]
         syn_path = results_dir / f"syn_{i:04d}.wav"
 
-        sf.write(str(ref_path), ref_audio, ref_sr)
-
         try:
-            tts_client.save_synthesis(text, str(syn_path))
+            if provider == "kugel":
+                tts_client.save_synthesis(text, str(syn_path), voice_id=ref_voice_id)
+            else:
+                tts_client.save_synthesis(text, str(syn_path))
 
-            mcd = compute_mcd(str(ref_path), str(syn_path))
-            pesq_val = compute_pesq_score(str(ref_path), str(syn_path))
-            stoi_val = compute_stoi_score(str(ref_path), str(syn_path))
+            mcd = compute_mcd(ref_path_i, str(syn_path))
+            pesq_val = compute_pesq_score(ref_path_i, str(syn_path))
+            stoi_val = compute_stoi_score(ref_path_i, str(syn_path))
 
             mcd_values.append(mcd)
             if pesq_val is not None:
@@ -153,14 +184,18 @@ def run(config: Config) -> dict:
         except Exception as e:
             logger.warning("Failed signal quality %d: %s", i, e)
         finally:
-            ref_path.unlink(missing_ok=True)
             syn_path.unlink(missing_ok=True)
+            if item.get("_tmp"):
+                Path(ref_path_i).unlink(missing_ok=True)
 
     summary = {
-        "speaker_mismatch_warning": (
-            "LJSpeech speaker differs from the Kugel voice. "
-            "PESQ/STOI/MCD scores reflect voice mismatch, not quality."
+        "reference_type": (
+            "cloned matched-speaker (LJSpeech → Kugel voice); metrics reflect "
+            "clone fidelity, not stock-voice quality"
+            if provider == "kugel"
+            else "LJSpeech reference (may differ from synthesized speaker)"
         ),
+        "reference_voice_id": ref_voice_id,
         "mcd_mean": round(np.mean(mcd_values), 2) if mcd_values else None,
         "pesq_mean": round(np.mean(pesq_values), 3) if pesq_values else None,
         "stoi_mean": round(np.mean(stoi_values), 4) if stoi_values else None,

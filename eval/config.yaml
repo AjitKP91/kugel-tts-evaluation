@@ -22,10 +22,14 @@ tts:
     sample_rate: 24000              # native Kugel rate (8000/16000/22050/24000/44100)
     rest_endpoint: https://api.kugelaudio.com/v1/tts/generate
     ws_endpoint: wss://api.kugelaudio.com/ws/tts
+    voices_endpoint: https://api.kugelaudio.com/v1/voices
     request_timeout_s: 120
-    # Optional matched-speaker reference set for Test 2.4 (MCD/PESQ/STOI).
-    # null → Test 2.4 self-skips (speaker mismatch dominates the metric).
+    # Test 2.4 (MCD/PESQ/STOI) matched-speaker reference. Populate both fields
+    # by running: python scripts/clone_reference_voice.py
+    # It clones LJSpeech into a Kugel voice and writes reference WAVs here.
+    # Leave null to make Test 2.4 self-skip.
     reference_set_dir: null
+    reference_voice_id: null
 
 evaluation:
   tts_concurrency_levels: [1, 5, 10, 20]

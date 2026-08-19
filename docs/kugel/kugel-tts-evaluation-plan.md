@@ -65,9 +65,46 @@ tts:
     sample_rate: 24000
     rest_endpoint: https://api.kugelaudio.com/v1/tts/generate
     ws_endpoint: wss://api.kugelaudio.com/ws/tts
+    voices_endpoint: https://api.kugelaudio.com/v1/voices
     request_timeout_s: 120
-    reference_set_dir: null    # set to enable Test 2.4 (matched-speaker refs)
+    reference_set_dir: null    # Test 2.4 matched-speaker reference (see §4a)
+    reference_voice_id: null   # cloned voice used for Test 2.4
 ```
+
+---
+
+## 4a. Enable Test 2.4 (matched-speaker reference via voice cloning)
+
+MCD / PESQ / STOI only make sense when the synthesized audio and the reference
+recording are the **same speaker**. A stock Kugel library voice has no
+ground-truth human recording, so Test 2.4 self-skips by default.
+
+To enable it, clone a single-speaker corpus (LJSpeech) into a Kugel voice and
+use the corpus's real recordings as the reference. One command does the whole
+bootstrap:
+
+```bash
+python scripts/clone_reference_voice.py --n-clone 6 --n-reference 30 \
+    --out eval/data/kugel_reference
+```
+
+This uploads a few LJSpeech clips to `POST /v1/voices` to create a cloned voice,
+then saves the remaining clips (WAV + transcript) as the reference set and
+prints the two config values to set:
+
+```yaml
+    reference_set_dir: eval/data/kugel_reference
+    reference_voice_id: <printed voice_id>
+```
+
+Test 2.4 then synthesizes each reference transcript with the cloned voice and
+compares against the real recording.
+
+> **What this measures:** clone fidelity — how faithfully Kugel reproduces the
+> cloned LJSpeech speaker — **not** the quality of a stock library voice. It is
+> the only speaker-matched way to run these metrics. MCD (DTW-aligned) is the
+> most reliable of the three; PESQ/STOI assume rough time-alignment and should
+> be read as indicative.
 
 ---
 
@@ -78,7 +115,7 @@ tts:
 | 2.1 Naturalness | REST batch | Unchanged — UTMOS/DNSMOS scored locally |
 | 2.2 Intelligibility | REST batch | Round-trip WER via local Whisper |
 | 2.3 Prosody | REST batch | Reference-free F0 + WPM |
-| 2.4 Signal Quality | REST batch | **Self-skips** unless `reference_set_dir` set — speaker mismatch dominates MCD/PESQ/STOI |
+| 2.4 Signal Quality | REST batch | Runs against a **cloned matched-speaker reference** (see §4a); measures clone fidelity. Self-skips until `reference_set_dir` + `reference_voice_id` are set |
 | 2.5 Streaming TTFB & RTF | **WebSocket** vs REST | WebSocket gives true TTFB; REST is chunked read |
 | 2.6 Throughput & Concurrency | REST (thread-pool + async) | `tts_concurrency_levels` = [1,5,10,20] |
 | 2.7 Edge Cases | REST batch | SSML/markup cases are plain-text robustness probes (Kugel has no documented SSML) |
@@ -86,8 +123,9 @@ tts:
 
 The client (`eval/tts/kugel_client.py`) mirrors the original `TTSClient` public
 surface — `synthesize_batch`, `synthesize_batch_rest`, `synthesize_stream`
-(WebSocket), `synthesize_stream_rest`, `save_synthesis`, `bytes_to_wav` — so
-the test modules call it through `build_tts_client(config)` without branching.
+(WebSocket), `synthesize_stream_rest`, `save_synthesis`, `bytes_to_wav` — plus
+`clone_voice` (used only by the Test 2.4 bootstrap) — so the test modules call
+it through `build_tts_client(config)` without branching.
 
 ---
 
@@ -96,6 +134,9 @@ the test modules call it through `build_tts_client(config)` without branching.
 ```bash
 # Verify connectivity + schema first
 python -m eval.run phase0
+
+# (Optional) build the Test 2.4 matched-speaker reference — see §4a
+python scripts/clone_reference_voice.py
 
 # Single tests while validating
 python -m eval.run tts --test naturalness
@@ -112,9 +153,10 @@ API key, writes to `results/run-<DD-MM-YY>/kugel/`).
 
 ## 6. Known caveats
 
-- **Test 2.4** is off by default for Kugel. To enable it, record a set of
-  reference WAVs in the Kugel voice and point `tts.kugel.reference_set_dir` at
-  the directory.
+- **Test 2.4** requires the cloned matched-speaker reference from §4a. When
+  enabled it measures **clone fidelity** (how well Kugel reproduces the cloned
+  LJSpeech speaker), not stock-voice quality — label it as such in any report.
+  MCD (DTW-aligned) is the most trustworthy of the three metrics.
 - **SSML** is not documented for KugelAudio; edge-case SSML inputs are scored as
   plain-text robustness (a pass means the tags didn't error, not that they were
   interpreted).

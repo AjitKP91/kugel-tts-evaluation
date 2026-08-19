@@ -50,11 +50,18 @@ class KugelTTSConfig:
     sample_rate: int = 24000             # native Kugel rate; 8k/16k/22.05k/44.1k also allowed
     rest_endpoint: str = "https://api.kugelaudio.com/v1/tts/generate"
     ws_endpoint: str = "wss://api.kugelaudio.com/ws/tts"
+    voices_endpoint: str = "https://api.kugelaudio.com/v1/voices"
     request_timeout_s: int = 120
     # Optional matched-speaker reference set for Test 2.4 (MCD/PESQ/STOI).
-    # Without this the test self-skips — the reference-vs-Kugel speaker
-    # mismatch dominates the metric and makes it uninterpretable.
+    # Populated by scripts/clone_reference_voice.py: it clones a single-speaker
+    # corpus (LJSpeech) into a Kugel voice and writes the ground-truth reference
+    # WAVs + a manifest here. When set, Test 2.4 synthesizes with the cloned
+    # voice (below) and compares against these matched-speaker references
+    # instead of self-skipping.
     reference_set_dir: str | None = None
+    # voice_id of the cloned reference speaker (returned by POST /v1/voices).
+    # Used by Test 2.4 only; the main suite still uses `voice_id` above.
+    reference_voice_id: int | str | None = None
 
     @property
     def api_key(self) -> str:

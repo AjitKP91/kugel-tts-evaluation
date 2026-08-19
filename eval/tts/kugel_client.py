@@ -104,15 +104,61 @@ class KugelTTSClient:
         return len(audio_bytes) / (self.sample_rate * 2)
 
     # ------------------------------------------------------------------
+    # Voice cloning — POST /v1/voices (multipart)
+    # ------------------------------------------------------------------
+
+    @retry_with_backoff(reraise_if=_is_permanent_kugel_error)
+    def clone_voice(
+        self,
+        reference_paths: list[str | Path],
+        name: str,
+        sex: str = "female",
+        description: str = "",
+        category: str = "cloned",
+    ) -> dict[str, Any]:
+        """Create a cloned voice from one or more clean reference recordings.
+
+        Multipart upload to POST /v1/voices: a `metadata` JSON part plus one
+        `files` part per reference clip. Returns the parsed JSON response, which
+        includes the new `voice_id`. Used by scripts/clone_reference_voice.py to
+        build the Test 2.4 matched-speaker reference; not part of the scored
+        test suite itself.
+        """
+        metadata = json.dumps(
+            {"name": name, "sex": sex, "description": description, "category": category}
+        )
+        files = [("metadata", (None, metadata, "application/json"))]
+        opened = []
+        try:
+            for p in reference_paths:
+                fh = open(p, "rb")
+                opened.append(fh)
+                files.append(("files", (Path(p).name, fh, "application/octet-stream")))
+            resp = requests.post(
+                self.cfg.voices_endpoint,
+                files=files,
+                headers={"Authorization": f"Bearer {self.cfg.api_key}"},
+                timeout=self.cfg.request_timeout_s,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        finally:
+            for fh in opened:
+                fh.close()
+
+    # ------------------------------------------------------------------
     # Batch — POST /v1/tts/generate (raw PCM16 body)
     # ------------------------------------------------------------------
 
     @retry_with_backoff(reraise_if=_is_permanent_kugel_error)
-    def synthesize_batch(self, text: str) -> dict[str, Any]:
+    def synthesize_batch(self, text: str, voice_id: int | str | None = None) -> dict[str, Any]:
+        body = self._body(text)
+        if voice_id is not None:
+            body["voice_id"] = voice_id
         start = time.perf_counter()
         resp = requests.post(
             self.cfg.rest_endpoint,
-            json=self._body(text),
+            json=body,
             headers=self._headers(),
             timeout=self.cfg.request_timeout_s,
         )
@@ -260,12 +306,16 @@ class KugelTTSClient:
     # ------------------------------------------------------------------
 
     def save_synthesis(
-        self, text: str, output_path: str | Path, interface: str = "rest"
+        self,
+        text: str,
+        output_path: str | Path,
+        interface: str = "rest",
+        voice_id: int | str | None = None,
     ) -> dict[str, Any]:
         if interface == "websocket":
             result = self.synthesize_stream(text)
         else:
-            result = self.synthesize_batch(text)
+            result = self.synthesize_batch(text, voice_id=voice_id)
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
