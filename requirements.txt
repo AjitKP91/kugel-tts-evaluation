@@ -1,0 +1,55 @@
+# PyTorch — installed with CUDA 12.1 wheel by setup.sh before this file.
+# Pinned to 2.2.1 to satisfy nisqa's strict torch==2.2.1 requirement.
+# Listed here so uv/pip knows the package is already satisfied and does
+# not downgrade to the CPU-only PyPI wheel when resolving other deps.
+torch==2.2.1
+torchvision==0.17.1
+torchaudio==2.2.1
+
+# numpy pinned before all other deps — nisqa requires 1.26.4 exactly,
+# and speechmetrics would otherwise downgrade to 1.23.5.
+numpy==1.26.4
+
+# KugelAudio TTS — HTTP batch + WebSocket streaming
+requests
+aiohttp>=3.9
+websocket-client>=1.7
+
+# Metrics / dataset tooling
+jiwer>=3.0
+scikit-learn
+pyarrow>=14.0,<15.0
+datasets>=2.19.0,<3.0.0
+soundfile
+pydub
+
+# TTS evaluation
+# utmos (PyPI) requires fairseq which is unbuildable on pip>=24, and also requires
+# transformers with PyTorch>=2.4 (we pin 2.2.1). UTMOS scoring uses the torch.hub
+# UTMOS22 strategy in eval/tts/utmos.py instead.
+# utmos
+nisqa
+# speechmetrics: not on PyPI and declares numpy<1.24 (conflicts with nisqa).
+# Installed separately with --no-deps in setup.sh — works fine at runtime with numpy 1.26.4.
+pesq
+pystoi
+pyworld
+dtw-python
+librosa
+speechbrain
+
+# Reference transcription
+openai-whisper
+
+# Forced alignment (install separately: conda/pip + model download)
+# montreal-forced-aligner
+
+setuptools
+
+# Audio / reporting
+onnxruntime
+scipy
+matplotlib
+pandas
+tqdm
+pyyaml

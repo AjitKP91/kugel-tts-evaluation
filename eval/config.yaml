@@ -1,0 +1,35 @@
+# KugelAudio TTS evaluation config.
+#
+# Auth: export your API key as KUGELAUDIO_API_KEY before running. It is read at
+# call time (never stored here) and also passed as the ?api_key= query param on
+# the WebSocket URL.
+
+tts:
+  # Provider switch — "kugel" (KugelAudio, default) or "riva" (dormant Magpie
+  # path retained for symmetry). Only the "kugel" sub-block is read for kugel.
+  provider: kugel
+
+  kugel:
+    api_key_env: KUGELAUDIO_API_KEY
+    model_id: kugel-3               # kugel-3 | kugel-2.5 | kugel-2-turbo
+    voice_id: 1071                  # numeric voice id — see GET /v1/voices
+    language: null                  # ISO 639-1 (e.g. "en"); null = auto-detect
+    cfg_scale: 2.0                  # 1.2–2.5, higher = more expressive
+    temperature: 0.4                # 0.0–1.0
+    speed: 1.0                      # 0.8–1.2, pitch-preserving
+    normalize: true
+    max_new_tokens: 2048
+    sample_rate: 24000              # native Kugel rate (8000/16000/22050/24000/44100)
+    rest_endpoint: https://api.kugelaudio.com/v1/tts/generate
+    ws_endpoint: wss://api.kugelaudio.com/ws/tts
+    request_timeout_s: 120
+    # Optional matched-speaker reference set for Test 2.4 (MCD/PESQ/STOI).
+    # null → Test 2.4 self-skips (speaker mismatch dominates the metric).
+    reference_set_dir: null
+
+evaluation:
+  tts_concurrency_levels: [1, 5, 10, 20]
+  bootstrap_n: 1000
+  results_dir: results/
+  log_level: INFO
+  data_dir: eval/data/

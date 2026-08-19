@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+*.env
+
+# Downloaded datasets and model weights
+pretrained_models/
+*.pt
+*.onnx
+
+# Results and generated audio
+results/
+*.wav
+*.pcm
+scripts/_tmux_launcher.sh
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
