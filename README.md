@@ -70,26 +70,24 @@ kugel-tts-evaluation/
 **Run this on the Azure VM** (Germany West Central), not a laptop, so network jitter stays out of the latency measurements. See `RUNBOOK.md` for the full setup guide.
 
 ```bash
-# 1. One-time setup (system packages, venv, dependencies)
+# 1. One-time setup — installs deps AND prompts for your KugelAudio API key,
+#    saving it to a gitignored .env (you won't need to type it again).
 bash scripts/setup.sh
 
-# 2. Get a KugelAudio API key from your KugelAudio dashboard, then export it
-export KUGELAUDIO_API_KEY="..."
+# 2. Set your voice_id / model_id in eval/config.yaml (defaults: voice_id 1071, kugel-3)
 
-# 3. Set your voice_id / model_id in eval/config.yaml (defaults: voice_id 1071, kugel-3)
+# 3. Run everything — start_eval.sh loads the key from .env and runs in tmux
+bash scripts/start_eval.sh
 
-# 4. Verify connectivity
-python -m eval.run phase0
-
-# 5. Run everything
-python -m eval.run all
-
-# 6. Open the report
-open results/report.html
+# 4. (Or run directly) verify connectivity, then the full suite
+bash scripts/start_eval.sh phase0
+bash scripts/start_eval.sh all
 ```
 
-Run a single test:
+Run a single test manually (load the key from `.env` first):
 ```bash
+source .venv/bin/activate
+set -a; source .env; set +a
 python -m eval.run tts --test naturalness
 python -m eval.run tts --test latency
 ```

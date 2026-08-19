@@ -99,7 +99,7 @@ fi
 
 # ── 5. HuggingFace login ─────────────────────────────────────────────────────
 echo ""
-echo "[5/6] HuggingFace login (optional)"
+echo "[5/7] HuggingFace login (optional)"
 echo "  Only needed for the optional LJSpeech reference set used by Test 2.4,"
 echo "  which self-skips for Kugel unless a matched-speaker reference is set."
 echo "  Get your token at: https://huggingface.co/settings/tokens"
@@ -107,9 +107,35 @@ echo ""
 hf auth login || echo "  Skipped HuggingFace login (fine — LJSpeech is optional)."
 echo "  HuggingFace step done."
 
-# ── 6. Verify ────────────────────────────────────────────────────────────────
+# ── 6. KugelAudio API key ────────────────────────────────────────────────────
+# Prompt once and persist to a gitignored .env so you never have to export it
+# by hand. start_eval.sh and manual runs read this file automatically.
 echo ""
-echo "[6/6] Verifying setup..."
+echo "[6/7] KugelAudio API key"
+ENV_FILE="$REPO_DIR/.env"
+if [ -f "$ENV_FILE" ] && grep -q '^KUGELAUDIO_API_KEY=' "$ENV_FILE"; then
+    echo "  .env already contains KUGELAUDIO_API_KEY — keeping it."
+    echo "  (Delete the line in $ENV_FILE and re-run setup to change it.)"
+else
+    read -rsp "  Paste your KUGELAUDIO_API_KEY (input hidden): " KUGEL_KEY
+    echo ""
+    if [ -z "$KUGEL_KEY" ]; then
+        echo "  WARNING: no key entered. You can add it later with:"
+        echo "    echo 'KUGELAUDIO_API_KEY=<your-key>' >> $ENV_FILE"
+    else
+        touch "$ENV_FILE"
+        chmod 600 "$ENV_FILE"
+        # Remove any stale line, then append the new one.
+        grep -v '^KUGELAUDIO_API_KEY=' "$ENV_FILE" > "$ENV_FILE.tmp" 2>/dev/null || true
+        mv "$ENV_FILE.tmp" "$ENV_FILE" 2>/dev/null || true
+        echo "KUGELAUDIO_API_KEY=$KUGEL_KEY" >> "$ENV_FILE"
+        echo "  Saved to $ENV_FILE (gitignored, chmod 600)."
+    fi
+fi
+
+# ── 7. Verify ────────────────────────────────────────────────────────────────
+echo ""
+echo "[7/7] Verifying setup..."
 python -c "import websocket; print('  websocket-client OK')"
 python -c "import jiwer; print('  jiwer OK')"
 python -c "import soundfile; print('  soundfile OK')"
@@ -120,7 +146,7 @@ echo ""
 echo "=========================================="
 echo "  Setup complete!"
 echo ""
-echo "  Next step: export your API key and run the evaluation:"
-echo "    export KUGELAUDIO_API_KEY=..."
+echo "  Your API key is saved in .env — no need to export it."
+echo "  Next step, run the evaluation:"
 echo "    bash scripts/start_eval.sh"
 echo "=========================================="

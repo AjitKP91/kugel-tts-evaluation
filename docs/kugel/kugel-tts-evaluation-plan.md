@@ -28,15 +28,16 @@ limit 10,000 characters.
 ## 2. Get credentials
 
 1. Create an API key in your KugelAudio dashboard.
-2. Export it (read at call time; never stored in the repo):
-   ```bash
-   export KUGELAUDIO_API_KEY="..."
-   ```
+2. `bash scripts/setup.sh` prompts for it (input hidden) and saves it to a
+   gitignored `.env` — the key is read from there at call time and never
+   committed. You don't export it manually. To change it later, delete the
+   `KUGELAUDIO_API_KEY=` line in `.env` and re-run setup, or edit `.env`.
 3. Pick the `voice_id` to evaluate from the Voices section of the docs.
 
-Quick manual smoke check:
+Quick manual smoke check (load the saved key into your shell first):
 
 ```bash
+set -a; source .env; set +a
 curl -X POST "https://api.kugelaudio.com/v1/tts/generate" \
   -H "Authorization: Bearer $KUGELAUDIO_API_KEY" \
   -H "Content-Type: application/json; charset=utf-8" \

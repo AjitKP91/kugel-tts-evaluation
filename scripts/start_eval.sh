@@ -26,13 +26,27 @@ echo ""
 echo "Pulling latest code..."
 git pull
 
-# ── Ask for KugelAudio API key ───────────────────────────────────────────────
-echo ""
-read -rsp "Paste your KUGELAUDIO_API_KEY (input hidden): " KUGEL_KEY
-echo ""
+# ── Resolve the KugelAudio API key ───────────────────────────────────────────
+# Prefer the key saved by setup.sh in .env; fall back to an already-exported
+# env var; only prompt as a last resort. You should never have to type it again
+# after setup.
+ENV_FILE="$REPO_DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+    # shellcheck disable=SC1090
+    set -a; source "$ENV_FILE"; set +a
+fi
+KUGEL_KEY="${KUGELAUDIO_API_KEY:-}"
 if [ -z "$KUGEL_KEY" ]; then
-    echo "ERROR: API key cannot be empty."
-    exit 1
+    echo ""
+    echo "No KUGELAUDIO_API_KEY found in .env or environment."
+    read -rsp "Paste your KUGELAUDIO_API_KEY (input hidden): " KUGEL_KEY
+    echo ""
+    if [ -z "$KUGEL_KEY" ]; then
+        echo "ERROR: API key cannot be empty."
+        exit 1
+    fi
+else
+    echo "Using KUGELAUDIO_API_KEY from .env."
 fi
 
 # ── Compute per-run, per-provider results directory ──────────────────────────

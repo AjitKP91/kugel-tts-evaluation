@@ -12,16 +12,19 @@ scoring tools (Whisper, UTMOS, ECAPA-TDNN).
 ## 1. Prerequisites
 
 ### 1.1 KugelAudio API key
-1. Get an API key from your KugelAudio dashboard (`kugelaudio.com`).
-2. Pick the `voice_id` you want to evaluate (see the Voices section of
-   `docs.kugelaudio.com`; the config default is `1071`).
+Get an API key from your KugelAudio dashboard (`kugelaudio.com`). **You do not
+need to export it** — `scripts/setup.sh` prompts for it once and saves it to a
+gitignored `.env` file; every run reads it from there automatically (see §3.2).
 
-### 1.2 HuggingFace (optional)
-Only Test 2.4 (signal quality) uses an external dataset (LJSpeech), and it
-self-skips for Kugel unless you configure a matched-speaker reference set. If
-you want it, create a free account at https://huggingface.co and generate a
-read token. Everything else (Harvard sentences, intelligibility / edge-case /
-long-form text) is bundled in `eval/data/`.
+Also pick the `voice_id` you want to evaluate (Voices section of
+`docs.kugelaudio.com`; the config default is `1071`).
+
+### 1.2 HuggingFace (only for Test 2.4)
+Test 2.4 (signal quality) is the only test that uses an external dataset
+(LJSpeech), and only when you enable it (§3.4). If you plan to run it, create a
+free account at https://huggingface.co and generate a read token — `setup.sh`
+runs `hf auth login` for you. Everything else (Harvard sentences,
+intelligibility / edge-case / long-form text) is bundled in `eval/data/`.
 
 ---
 
@@ -32,7 +35,7 @@ long-form text) is bundled in `eval/data/`.
 | All eval tests (phase0, tts) | **Azure VM** | Clean latency numbers, GPU for scoring |
 | Whisper transcription (local GPU) | **Azure VM** | Handles large-v3 in real time |
 | UTMOS / SpeechBrain scoring | **Azure VM** | GPU-accelerated; slow on CPU |
-| Viewing the HTML report | Laptop | Copy `results/report.html` back via SCP |
+| Viewing the HTML report | Laptop | Copy `report.html` back via SCP |
 | Editing config / fixing code | Either | Up to you |
 
 ---
@@ -46,35 +49,33 @@ git clone <your-repo-url> kugel-tts-evaluation
 cd kugel-tts-evaluation
 ```
 
-### 3.2 Run setup
+### 3.2 Run setup (this is where you enter the API key)
 
 ```bash
 bash scripts/setup.sh
 ```
 
-This installs system packages, creates `.venv`, installs all Python
-dependencies via `uv`, and sets `LD_LIBRARY_PATH` for PyTorch's bundled CUDA
-(needed by UTMOS). Takes 10–20 minutes on first run.
+The script, in order:
+1. Installs system packages (`ffmpeg`, `libsndfile1`, …).
+2. Creates `.venv` and installs all Python dependencies via `uv`.
+3. Sets `LD_LIBRARY_PATH` to PyTorch's bundled CUDA (needed by UTMOS).
+4. Runs `hf auth login` (optional — skip if not using Test 2.4).
+5. **Prompts for your `KUGELAUDIO_API_KEY` (input hidden) and saves it to
+   `.env`** with `chmod 600`. `.env` is gitignored, so the key never leaves the
+   VM. If `.env` already has a key it is kept — delete that line and re-run
+   setup to change it.
+6. Verifies key imports.
 
-### 3.3 (Optional) pre-download the LJSpeech reference
+Takes 10–20 minutes on first run. **After this you never type or export the key
+again** — `start_eval.sh` and manual runs load it from `.env`.
 
-Only needed if you plan to enable Test 2.4 with a matched-speaker reference:
-
-```bash
-bash scripts/download_datasets.sh ljspeech
-```
-
----
-
-## 4. Configure
-
-Edit `eval/config.yaml`:
+### 3.3 Set your voice / model in `eval/config.yaml`
 
 ```yaml
 tts:
   provider: kugel
   kugel:
-    api_key_env: KUGELAUDIO_API_KEY
+    api_key_env: KUGELAUDIO_API_KEY   # name of the env var; value lives in .env
     model_id: kugel-3
     voice_id: 1071
     sample_rate: 24000
@@ -83,18 +84,40 @@ tts:
     request_timeout_s: 120
 ```
 
-Then export your key:
+You normally only change `voice_id` and `model_id`. Do **not** put the key in
+this file — `api_key_env` just names the variable; the value is read from `.env`
+(or the environment) at call time.
+
+### 3.4 (Optional) Enable Test 2.4 — matched-speaker reference
+
+Test 2.4 (MCD/PESQ/STOI) self-skips unless you build a same-speaker reference.
+One command clones a single-speaker corpus (LJSpeech) into a Kugel voice and
+saves the reference recordings:
 
 ```bash
-export KUGELAUDIO_API_KEY="..."
+source .venv/bin/activate
+set -a; source .env; set +a          # load the API key into this shell
+python scripts/clone_reference_voice.py --n-clone 6 --n-reference 30 \
+    --out eval/data/kugel_reference
 ```
+
+It prints two values — copy them into `eval/config.yaml` under `tts.kugel`:
+
+```yaml
+    reference_set_dir: eval/data/kugel_reference
+    reference_voice_id: <printed voice_id>
+```
+
+> This measures **clone fidelity** (how faithfully Kugel reproduces the cloned
+> speaker), not stock-voice quality. Skip this step to leave Test 2.4 skipping.
 
 ---
 
-## 5. Running the Evaluation
+## 4. Running the Evaluation
 
-`start_eval.sh` pulls latest code, prompts for your API key, and runs inside a
-persistent tmux session so SSH disconnects don't interrupt it.
+`start_eval.sh` pulls latest code, **loads the API key from `.env`** (only
+prompts if it's missing), and runs inside a persistent tmux session so SSH
+disconnects don't interrupt it.
 
 ```bash
 bash scripts/start_eval.sh           # everything (phase0 + tts + report)
@@ -112,13 +135,16 @@ tmux attach -t eval          # detach with Ctrl+B then D
 
 ### Run manually (single test)
 
+The key is in `.env`; load it into your shell first, then run:
+
 ```bash
 source .venv/bin/activate
-export KUGELAUDIO_API_KEY="..."
+set -a; source .env; set +a          # exports KUGELAUDIO_API_KEY for this shell
 
+python -m eval.run phase0               # connectivity + schema
 python -m eval.run tts --test naturalness
-python -m eval.run tts --test latency
-python -m eval.run all --dry-run       # verify config, no API calls
+python -m eval.run tts --test latency   # exercises WebSocket + REST
+python -m eval.run all --dry-run        # verify config, no API calls
 ```
 
 Available TTS test names:
@@ -127,7 +153,7 @@ Available TTS test names:
 
 ---
 
-## 6. Resuming After Interruption
+## 5. Resuming After Interruption
 
 Every API-call result is written to a `.jsonl` file immediately. Re-running the
 same command **skips already-completed items** — no data lost, no duplicate
@@ -135,7 +161,7 @@ calls.
 
 ---
 
-## 7. Outputs
+## 6. Outputs
 
 ```
 results/run-<DD-MM-YY>/kugel/
@@ -155,7 +181,7 @@ scp <vm-user>@<vm-ip>:~/kugel-tts-evaluation/results/run-*/kugel/report.html ~/D
 
 ---
 
-## 8. Cleaning Up
+## 7. Cleaning Up
 
 ```bash
 bash scripts/clean.sh          # clear results, keep .venv + datasets
@@ -164,12 +190,15 @@ bash scripts/clean.sh --full   # also remove .venv (re-run setup.sh after)
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 ### `Set $KUGELAUDIO_API_KEY with a valid KugelAudio API key`
+The key isn't in your environment. Either re-run `bash scripts/setup.sh` (which
+saves it to `.env`), or load an existing `.env` into your shell:
 ```bash
-export KUGELAUDIO_API_KEY="..."
+set -a; source .env; set +a
 ```
+`start_eval.sh` does this automatically — this only bites manual runs.
 
 ### `websocket-client` import error (Test 2.5 streaming)
 ```bash
