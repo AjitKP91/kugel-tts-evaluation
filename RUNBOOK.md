@@ -126,6 +126,13 @@ bash scripts/start_eval.sh phase0    # connectivity check only
 bash scripts/start_eval.sh report    # regenerate report from existing results
 ```
 
+**The report is generated automatically** at the end of a full run
+(`start_eval.sh` / `start_eval.sh all`) — you do **not** need a separate
+command. It's written to `results/run-<DD-MM-YY>/kugel/report.html`. Use the
+standalone `report` command only to rebuild the HTML from results you already
+have (e.g. after tweaking the report generator, or if you ran individual `tts`
+tests, which do not auto-generate it).
+
 Monitor and re-attach:
 
 ```bash
