@@ -58,9 +58,7 @@ kugel-tts-evaluation/
 ├── docs/
 │   ├── kugel/
 │   │   └── kugel-tts-evaluation-plan.md   # Enablement + run guide
-│   ├── test-suite-overview.md             # Vendor-neutral test-suite summary
-│   └── others/
-│       └── voice_agent_evaluation.md      # Research reference
+│   └── test-suite-overview.md             # Vendor-neutral test-suite summary
 ├── requirements.txt
 └── RUNBOOK.md                # Step-by-step setup and run guide for the Azure VM
 ```
