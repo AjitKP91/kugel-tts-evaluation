@@ -19,12 +19,14 @@ gitignored `.env` file; every run reads it from there automatically (see §3.2).
 Also pick the `voice_id` you want to evaluate (Voices section of
 `docs.kugelaudio.com`; the config default is `1071`).
 
-### 1.2 HuggingFace (only for Test 2.4)
+### 1.2 HuggingFace (for Test 2.4)
 Test 2.4 (signal quality) is the only test that uses an external dataset
-(LJSpeech), and only when you enable it (§3.4). If you plan to run it, create a
-free account at https://huggingface.co and generate a read token — `setup.sh`
-runs `hf auth login` for you. Everything else (Harvard sentences,
-intelligibility / edge-case / long-form text) is bundled in `eval/data/`.
+(LJSpeech) — it's cloned into the reference voice during setup (§3.4), which is
+enabled by default. Create a free account at https://huggingface.co and generate
+a read token; `setup.sh` runs `hf auth login` for you. If you skip HF login, the
+clone step is skipped and Test 2.4 self-skips — everything else still runs
+(Harvard sentences, intelligibility / edge-case / long-form text are bundled in
+`eval/data/`).
 
 ---
 
@@ -88,28 +90,38 @@ You normally only change `voice_id` and `model_id`. Do **not** put the key in
 this file — `api_key_env` just names the variable; the value is read from `.env`
 (or the environment) at call time.
 
-### 3.4 (Optional) Enable Test 2.4 — matched-speaker reference
+### 3.4 Test 2.4 reference — cloned automatically by setup
 
-Test 2.4 (MCD/PESQ/STOI) self-skips unless you build a same-speaker reference.
-One command clones a single-speaker corpus (LJSpeech) into a Kugel voice and
-saves the reference recordings:
+**`setup.sh` already handles this** (step 7): once your API key is in `.env`, it
+runs `clone_reference_voice.py`, which clones a single-speaker corpus (LJSpeech)
+into a Kugel voice and **patches `eval/config.yaml`** so Test 2.4 is enabled by
+default. You don't need to do anything here unless that step was skipped (no API
+key at setup time) or you want to re-clone.
+
+To run it manually (or re-run):
 
 ```bash
 source .venv/bin/activate
 set -a; source .env; set +a          # load the API key into this shell
-python scripts/clone_reference_voice.py --n-clone 6 --n-reference 30 \
-    --out eval/data/kugel_reference
+python scripts/clone_reference_voice.py               # clones + patches config.yaml
+python scripts/clone_reference_voice.py --force       # re-clone even if already set
+python scripts/clone_reference_voice.py --no-patch-config   # just print the values
 ```
 
-It prints two values — copy them into `eval/config.yaml` under `tts.kugel`:
+It's idempotent: if `config.yaml` already points at an existing reference set,
+it exits without re-cloning. The two config keys it sets:
 
 ```yaml
     reference_set_dir: eval/data/kugel_reference
     reference_voice_id: <printed voice_id>
 ```
 
-> This measures **clone fidelity** (how faithfully Kugel reproduces the cloned
-> speaker), not stock-voice quality. Skip this step to leave Test 2.4 skipping.
+To **opt out** (leave Test 2.4 skipping), set both back to `null` in
+`eval/config.yaml`.
+
+> **What Test 2.4 measures once enabled:** clone fidelity — how faithfully Kugel
+> reproduces the cloned LJSpeech speaker — not stock-voice quality. MCD
+> (DTW-aligned) is the most trustworthy of the three metrics.
 
 ---
 

@@ -13,7 +13,7 @@ echo "=========================================="
 
 # ── 1. System packages ──────────────────────────────────────────────────────
 echo ""
-echo "[1/6] Installing system packages..."
+echo "[1/8] Installing system packages..."
 sudo apt-get update -qq
 sudo apt-get install -y ffmpeg libavcodec-extra libsndfile1 git python3 python3-pip python3-venv
 
@@ -30,7 +30,7 @@ fi
 
 # ── 2. Cache directories in home (OS disk now 512GB) ────────────────────────
 echo ""
-echo "[2/6] Setting up cache directories..."
+echo "[2/8] Setting up cache directories..."
 mkdir -p ~/hf_home ~/torch_home ~/pip_cache
 
 # Persist env vars in ~/.bashrc (idempotent)
@@ -47,7 +47,7 @@ echo "  Cache dirs: HF_HOME=$HF_HOME  TORCH_HOME=$TORCH_HOME"
 
 # ── 3. Python venv ──────────────────────────────────────────────────────────
 echo ""
-echo "[3/6] Creating Python virtual environment..."
+echo "[3/8] Creating Python virtual environment..."
 if [ ! -d "$REPO_DIR/.venv" ]; then
     python3 -m venv "$REPO_DIR/.venv"
 fi
@@ -55,7 +55,7 @@ source "$REPO_DIR/.venv/bin/activate"
 
 # ── 4. Install Python dependencies ──────────────────────────────────────────
 echo ""
-echo "[4/6] Installing Python dependencies (this may take 10-20 minutes)..."
+echo "[4/8] Installing Python dependencies (this may take 10-20 minutes)..."
 
 # Install uv — much faster resolver, handles complex graphs pip cannot
 pip install uv --no-cache-dir -q
@@ -99,7 +99,7 @@ fi
 
 # ── 5. HuggingFace login ─────────────────────────────────────────────────────
 echo ""
-echo "[5/7] HuggingFace login (optional)"
+echo "[5/8] HuggingFace login (optional)"
 echo "  Only needed for the optional LJSpeech reference set used by Test 2.4,"
 echo "  which self-skips for Kugel unless a matched-speaker reference is set."
 echo "  Get your token at: https://huggingface.co/settings/tokens"
@@ -111,7 +111,7 @@ echo "  HuggingFace step done."
 # Prompt once and persist to a gitignored .env so you never have to export it
 # by hand. start_eval.sh and manual runs read this file automatically.
 echo ""
-echo "[6/7] KugelAudio API key"
+echo "[6/8] KugelAudio API key"
 ENV_FILE="$REPO_DIR/.env"
 if [ -f "$ENV_FILE" ] && grep -q '^KUGELAUDIO_API_KEY=' "$ENV_FILE"; then
     echo "  .env already contains KUGELAUDIO_API_KEY — keeping it."
@@ -133,9 +133,29 @@ else
     fi
 fi
 
-# ── 7. Verify ────────────────────────────────────────────────────────────────
+# ── 7. Test 2.4 reference (clone a matched-speaker voice) ────────────────────
+# Test 2.4 (MCD/PESQ/STOI) needs a same-speaker reference. Clone the LJSpeech
+# speaker into a Kugel voice now so 2.4 is enabled by default. Non-fatal: if the
+# API key or HF access is missing, Test 2.4 simply self-skips at run time.
 echo ""
-echo "[7/7] Verifying setup..."
+echo "[7/8] Test 2.4 matched-speaker reference (voice clone)"
+if [ -f "$ENV_FILE" ] && grep -q '^KUGELAUDIO_API_KEY=' "$ENV_FILE"; then
+    set -a; source "$ENV_FILE"; set +a
+    echo "  Cloning LJSpeech into a Kugel voice and wiring it into config.yaml..."
+    if python scripts/clone_reference_voice.py; then
+        echo "  Test 2.4 reference ready."
+    else
+        echo "  WARNING: clone step failed — Test 2.4 will self-skip until you run"
+        echo "           'python scripts/clone_reference_voice.py' manually."
+    fi
+else
+    echo "  Skipped — no API key in .env. Test 2.4 will self-skip. Enable later with:"
+    echo "    python scripts/clone_reference_voice.py"
+fi
+
+# ── 8. Verify ────────────────────────────────────────────────────────────────
+echo ""
+echo "[8/8] Verifying setup..."
 python -c "import websocket; print('  websocket-client OK')"
 python -c "import jiwer; print('  jiwer OK')"
 python -c "import soundfile; print('  soundfile OK')"

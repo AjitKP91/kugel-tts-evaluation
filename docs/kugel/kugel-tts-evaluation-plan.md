@@ -74,32 +74,39 @@ tts:
 
 ---
 
-## 4a. Enable Test 2.4 (matched-speaker reference via voice cloning)
+## 4a. Test 2.4 matched-speaker reference (enabled by default)
 
 MCD / PESQ / STOI only make sense when the synthesized audio and the reference
 recording are the **same speaker**. A stock Kugel library voice has no
-ground-truth human recording, so Test 2.4 self-skips by default.
+ground-truth human recording, so we build one by cloning a single-speaker
+corpus (LJSpeech) into a Kugel voice.
 
-To enable it, clone a single-speaker corpus (LJSpeech) into a Kugel voice and
-use the corpus's real recordings as the reference. One command does the whole
-bootstrap:
+**`setup.sh` does this automatically** (step 7) once your API key is in `.env`:
+it runs `clone_reference_voice.py`, which clones the voice, saves the reference
+recordings, and **patches `eval/config.yaml`** so Test 2.4 runs by default. No
+manual step needed.
+
+To run it yourself (or re-run):
 
 ```bash
-python scripts/clone_reference_voice.py --n-clone 6 --n-reference 30 \
-    --out eval/data/kugel_reference
+set -a; source .env; set +a
+python scripts/clone_reference_voice.py                    # clone + patch config
+python scripts/clone_reference_voice.py --force            # re-clone if already set
+python scripts/clone_reference_voice.py --no-patch-config  # only print values
 ```
 
-This uploads a few LJSpeech clips to `POST /v1/voices` to create a cloned voice,
-then saves the remaining clips (WAV + transcript) as the reference set and
-prints the two config values to set:
+It uploads a few LJSpeech clips to `POST /v1/voices` to create the cloned voice,
+saves the remaining clips (WAV + transcript) as the reference set, and sets:
 
 ```yaml
     reference_set_dir: eval/data/kugel_reference
     reference_voice_id: <printed voice_id>
 ```
 
-Test 2.4 then synthesizes each reference transcript with the cloned voice and
-compares against the real recording.
+The command is idempotent — if the config already points at an existing
+reference set, it exits without re-cloning. To **opt out**, set both keys back
+to `null`. Test 2.4 then synthesizes each reference transcript with the cloned
+voice and compares against the real recording.
 
 > **What this measures:** clone fidelity — how faithfully Kugel reproduces the
 > cloned LJSpeech speaker — **not** the quality of a stock library voice. It is
@@ -116,7 +123,7 @@ compares against the real recording.
 | 2.1 Naturalness | REST batch | Unchanged — UTMOS/DNSMOS scored locally |
 | 2.2 Intelligibility | REST batch | Round-trip WER via local Whisper |
 | 2.3 Prosody | REST batch | Reference-free F0 + WPM |
-| 2.4 Signal Quality | REST batch | Runs against a **cloned matched-speaker reference** (see §4a); measures clone fidelity. Self-skips until `reference_set_dir` + `reference_voice_id` are set |
+| 2.4 Signal Quality | REST batch | Runs against a **cloned matched-speaker reference** (set up by `setup.sh`, see §4a); measures clone fidelity. Self-skips only if the clone step was skipped |
 | 2.5 Streaming TTFB & RTF | **WebSocket** vs REST | WebSocket gives true TTFB; REST is chunked read |
 | 2.6 Throughput & Concurrency | REST (thread-pool + async) | `tts_concurrency_levels` = [1,5,10,20] |
 | 2.7 Edge Cases | REST batch | SSML/markup cases are plain-text robustness probes (Kugel has no documented SSML) |
@@ -136,8 +143,9 @@ it through `build_tts_client(config)` without branching.
 # Verify connectivity + schema first
 python -m eval.run phase0
 
-# (Optional) build the Test 2.4 matched-speaker reference — see §4a
-python scripts/clone_reference_voice.py
+# Test 2.4's matched-speaker reference is already set up by setup.sh (§4a).
+# Only run this if that step was skipped, or to re-clone:
+#   python scripts/clone_reference_voice.py
 
 # Single tests while validating
 python -m eval.run tts --test naturalness
@@ -154,10 +162,11 @@ API key, writes to `results/run-<DD-MM-YY>/kugel/`).
 
 ## 6. Known caveats
 
-- **Test 2.4** requires the cloned matched-speaker reference from §4a. When
-  enabled it measures **clone fidelity** (how well Kugel reproduces the cloned
-  LJSpeech speaker), not stock-voice quality — label it as such in any report.
-  MCD (DTW-aligned) is the most trustworthy of the three metrics.
+- **Test 2.4** runs against the cloned matched-speaker reference set up by
+  `setup.sh` (§4a). It measures **clone fidelity** (how well Kugel reproduces
+  the cloned LJSpeech speaker), not stock-voice quality — label it as such in
+  any report. MCD (DTW-aligned) is the most trustworthy of the three metrics.
+  It self-skips only if the clone step was skipped (no API key / HF at setup).
 - **SSML** is not documented for KugelAudio; edge-case SSML inputs are scored as
   plain-text robustness (a pass means the tags didn't error, not that they were
   interpreted).

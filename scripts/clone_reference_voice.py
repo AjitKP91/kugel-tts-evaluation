@@ -19,15 +19,17 @@ Usage (needs KUGELAUDIO_API_KEY and HF access to keithito/lj_speech):
     python scripts/clone_reference_voice.py \
         --n-clone 6 --n-reference 30 --out eval/data/kugel_reference
 
-Then set in eval/config.yaml (the script prints the exact values):
-    tts.kugel.reference_set_dir:  <out>
-    tts.kugel.reference_voice_id: <returned voice_id>
+By default it also patches eval/config.yaml in place (comment-preserving) so
+Test 2.4 is enabled on the next run. Pass --no-patch-config to only print the
+values. Re-running is idempotent: if config.yaml already points at an existing
+reference set with a manifest, it exits without re-cloning.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import re
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +43,51 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger("clone_reference_voice")
 
 
+def _patch_config(config_path: Path, ref_dir: str, voice_id) -> bool:
+    """Set tts.kugel.reference_set_dir + reference_voice_id in config.yaml,
+    preserving comments and layout. Returns True if the file was changed.
+
+    Uses line-level regex substitution (not a YAML round-trip) so the file's
+    inline comments and formatting survive. Both keys already exist in the
+    shipped config with `null` defaults, so we only rewrite their values.
+    """
+    text = config_path.read_text()
+    voice_repr = str(voice_id) if not isinstance(voice_id, str) else f'"{voice_id}"'
+
+    replacements = {
+        "reference_set_dir": f"{ref_dir}",
+        "reference_voice_id": voice_repr,
+    }
+    changed = False
+    for key, val in replacements.items():
+        # Match the indented "key: <anything>" line, keep leading whitespace
+        # and any trailing inline comment.
+        pat = re.compile(rf"^(?P<indent>\s*){key}:[^\n#]*(?P<comment>#.*)?$", re.MULTILINE)
+        def _sub(m):
+            comment = m.group("comment")
+            tail = f"  {comment}" if comment else ""
+            return f"{m.group('indent')}{key}: {val}{tail}"
+        new_text, n = pat.subn(_sub, text)
+        if n == 0:
+            logger.warning("Could not find '%s:' in %s — leaving it unset.", key, config_path)
+        else:
+            text = new_text
+            changed = True
+    if changed:
+        config_path.write_text(text)
+    return changed
+
+
+def _already_configured(config) -> bool:
+    """True if config already points at a usable reference set (manifest exists)."""
+    kugel = config.tts.kugel
+    ref_dir = getattr(kugel, "reference_set_dir", None) if kugel else None
+    ref_voice = getattr(kugel, "reference_voice_id", None) if kugel else None
+    if not ref_dir or not ref_voice:
+        return False
+    return (Path(ref_dir) / "manifest.json").exists()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Clone LJSpeech into a Kugel voice for Test 2.4")
     parser.add_argument("--n-clone", type=int, default=6,
@@ -51,11 +98,26 @@ def main() -> None:
                         help="Directory to write reference WAVs + manifest.json")
     parser.add_argument("--voice-name", type=str, default="ljspeech-clone")
     parser.add_argument("--sex", type=str, default="female")
+    parser.add_argument("--config", type=str, default="eval/config.yaml",
+                        help="Path to config.yaml to patch")
+    parser.add_argument("--no-patch-config", dest="patch_config", action="store_false",
+                        help="Only print the values instead of writing them into config.yaml")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-clone even if a reference set is already configured")
     args = parser.parse_args()
 
-    config = load_config()
+    config = load_config(args.config)
     if (config.tts.provider or "").lower() != "kugel":
         raise SystemExit(f"tts.provider is {config.tts.provider!r}, expected 'kugel'")
+
+    if not args.force and _already_configured(config):
+        logger.info(
+            "Test 2.4 reference already configured (%s, voice_id=%s) and manifest "
+            "present — nothing to do. Use --force to re-clone.",
+            config.tts.kugel.reference_set_dir, config.tts.kugel.reference_voice_id,
+        )
+        return
+
     client = build_tts_client(config)
 
     out_dir = Path(args.out)
@@ -119,8 +181,20 @@ def main() -> None:
     except OSError:
         pass
 
+    # 3. Patch config.yaml so Test 2.4 runs on the next eval.
+    if args.patch_config:
+        cfg_path = Path(args.config)
+        if _patch_config(cfg_path, str(out_dir), voice_id):
+            logger.info("Patched %s: reference_set_dir=%s reference_voice_id=%s",
+                        cfg_path, out_dir, voice_id)
+        else:
+            logger.warning("Config not patched — set the values below manually.")
+
     print("\n" + "=" * 60)
-    print("Test 2.4 reference ready. Set these in eval/config.yaml:")
+    if args.patch_config:
+        print("Test 2.4 reference ready and wired into config.yaml:")
+    else:
+        print("Test 2.4 reference ready. Set these in eval/config.yaml:")
     print(f"    tts.kugel.reference_set_dir:  {out_dir}")
     print(f"    tts.kugel.reference_voice_id: {voice_id}")
     print("=" * 60)
