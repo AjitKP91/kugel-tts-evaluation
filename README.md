@@ -17,18 +17,26 @@ KugelAudio is a **REST + WebSocket** API (no gRPC). All measurements are made **
 ### Phase 0 — Discovery
 Connectivity checks, API-key validation, response-schema discovery, smoke tests, and cold-start measurement against the KugelAudio REST + WebSocket endpoints.
 
-### TTS Evaluation — 8 Tests
+### TTS Evaluation — 7 Tests
 
 | Test | What it measures |
 |------|-----------------|
 | 2.1 Naturalness | UTMOS and DNSMOS (OVRL/SIG/BAK) on 200 synthesized sentences |
 | 2.2 Intelligibility | Round-trip WER: synthesize → Whisper large-v3 → jiwer, across 5 sentence categories |
 | 2.3 Prosody | F0 mean/std/range, speaking rate (WPM), rhythm (nPVI) — reference-free |
-| 2.4 Signal Quality | **MCD** (mel-cepstral distortion, DTW-aligned) against a **matched-speaker reference**. Enabled by default — `setup.sh` clones a single-speaker corpus (LJSpeech) into a Kugel voice via `scripts/clone_reference_voice.py` and wires it into the config; measures **clone fidelity** (how faithfully Kugel reproduces the cloned speaker). PESQ/STOI are intentionally **not reported** — they're sample-aligned metrics that don't apply to non-parallel TTS (intelligibility is covered by Test 2.2). Self-skips only if the clone step was skipped (no API key/HF at setup). |
 | 2.5 Streaming TTFB & RTF | Time-to-first-byte and real-time factor across 5 text-length buckets × 2 interfaces (**WebSocket** streaming vs REST chunked) |
 | 2.6 Throughput & Concurrency | RPS, P50/P99, error rate at N=1,5,10,20 concurrent requests (thread-pool + async REST) |
 | 2.7 Edge Cases | ~100 test cases across 17 categories: empty input, numbers, punctuation, Unicode, very long text, etc. (SSML/markup cases treated as plain-text robustness probes — Kugel has no documented SSML) |
 | 2.8 Long-Form Consistency | ECAPA-TDNN speaker-similarity drift, F0 drift, speaking-rate drift across multi-paragraph passages |
+
+> **Note on the retired Test 2.4 (Signal Quality).** MCD/PESQ/STOI require a
+> same-speaker *parallel* reference recording, which a TTS service can't provide
+> (no ground-truth human original for a synthetic voice). We prototyped a
+> voice-cloning workaround, but the metrics stayed unreliable, so 2.4 is not part
+> of the suite. Audio quality is covered by **2.1** (naturalness), **2.2**
+> (intelligibility), and **2.8** (voice consistency). The clone tooling
+> (`scripts/clone_reference_voice.py`) remains in the repo, dormant, for future
+> use if Kugel supplies ground-truth reference recordings.
 
 ---
 
@@ -137,7 +145,7 @@ Key packages (see `requirements.txt` for the full list):
 | `speechbrain` | ECAPA-TDNN speaker embeddings (TTS 2.8) |
 | `pyworld` | F0 extraction (TTS 2.3, 2.8) — optional; test runs without it |
 | `librosa` | Audio loading, MFCC, duration |
-| `datasets>=2.19,<3` | Optional LJSpeech reference (TTS 2.4) |
+| `datasets>=2.19,<3` | LJSpeech download for the dormant voice-clone tooling |
 | `nisqa` / `pesq` / `pystoi` / `dtw-python` | Signal-quality metrics |
 
 ---

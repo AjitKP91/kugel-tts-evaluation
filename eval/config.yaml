@@ -24,10 +24,10 @@ tts:
     ws_endpoint: wss://api.kugelaudio.com/ws/tts
     voices_endpoint: https://api.kugelaudio.com/v1/voices
     request_timeout_s: 120
-    # Test 2.4 (MCD/PESQ/STOI) matched-speaker reference. Populate both fields
-    # by running: python scripts/clone_reference_voice.py
-    # It clones LJSpeech into a Kugel voice and writes reference WAVs here.
-    # Leave null to make Test 2.4 self-skip.
+    # Dormant: used only by scripts/clone_reference_voice.py (voice-clone
+    # tooling). Test 2.4 (signal quality) was retired — MCD/PESQ/STOI need a
+    # same-speaker parallel reference that a TTS service can't provide. Kept for
+    # future use if Kugel supplies ground-truth reference recordings.
     reference_set_dir: null
     reference_voice_id: null
 

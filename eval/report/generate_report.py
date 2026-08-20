@@ -100,7 +100,6 @@ def _collect_tts_results(results_dir: Path) -> dict:
         "naturalness": "Test 2.1 — Automated Naturalness",
         "intelligibility": "Test 2.2 — Intelligibility (Round-Trip WER)",
         "prosody": "Test 2.3 — Prosody",
-        "signal_quality": "Test 2.4 — Audio Signal Quality",
         "latency": "Test 2.5 — Streaming TTFB & RTF",
         "concurrency": "Test 2.6 — Throughput & Concurrency",
         "edge_cases": "Test 2.7 — Edge Cases & Input Robustness",

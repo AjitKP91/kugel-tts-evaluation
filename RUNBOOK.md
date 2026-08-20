@@ -19,14 +19,12 @@ gitignored `.env` file; every run reads it from there automatically (see §3.2).
 Also pick the `voice_id` you want to evaluate (Voices section of
 `docs.kugelaudio.com`; the config default is `1071`).
 
-### 1.2 HuggingFace (for Test 2.4)
-Test 2.4 (signal quality) is the only test that uses an external dataset
-(LJSpeech) — it's cloned into the reference voice during setup (§3.4), which is
-enabled by default. Create a free account at https://huggingface.co and generate
-a read token; `setup.sh` runs `hf auth login` for you. If you skip HF login, the
-clone step is skipped and Test 2.4 self-skips — everything else still runs
-(Harvard sentences, intelligibility / edge-case / long-form text are bundled in
-`eval/data/`).
+### 1.2 HuggingFace (optional — not needed for the standard suite)
+None of the 7 tests need an external dataset. HuggingFace access is only used by
+the **dormant** voice-clone tooling (`scripts/clone_reference_voice.py`), which
+pulls LJSpeech. You can skip HF login entirely unless you plan to run that
+script. All test text (Harvard sentences, intelligibility / edge-case /
+long-form) is bundled in `eval/data/`.
 
 ---
 
@@ -61,7 +59,7 @@ The script, in order:
 1. Installs system packages (`ffmpeg`, `libsndfile1`, …).
 2. Creates `.venv` and installs all Python dependencies via `uv`.
 3. Sets `LD_LIBRARY_PATH` to PyTorch's bundled CUDA (needed by UTMOS).
-4. Runs `hf auth login` (optional — skip if not using Test 2.4).
+4. Runs `hf auth login` (optional — skip unless you'll run the voice-clone tooling).
 5. **Prompts for your `KUGELAUDIO_API_KEY` (input hidden) and saves it to
    `.env`** with `chmod 600`. `.env` is gitignored, so the key never leaves the
    VM. If `.env` already has a key it is kept — delete that line and re-run
@@ -90,38 +88,17 @@ You normally only change `voice_id` and `model_id`. Do **not** put the key in
 this file — `api_key_env` just names the variable; the value is read from `.env`
 (or the environment) at call time.
 
-### 3.4 Test 2.4 reference — cloned automatically by setup
+### 3.4 (Retired) Test 2.4 signal quality
 
-**`setup.sh` already handles this** (step 7): once your API key is in `.env`, it
-runs `clone_reference_voice.py`, which clones a single-speaker corpus (LJSpeech)
-into a Kugel voice and **patches `eval/config.yaml`** so Test 2.4 is enabled by
-default. You don't need to do anything here unless that step was skipped (no API
-key at setup time) or you want to re-clone.
+Test 2.4 (MCD/PESQ/STOI) has been **retired** — those metrics need a
+same-speaker parallel reference recording, which a synthetic TTS voice can't
+provide, so they never produced trustworthy numbers. Audio quality is covered by
+Tests 2.1 (naturalness), 2.2 (intelligibility), and 2.8 (voice consistency).
 
-To run it manually (or re-run):
-
-```bash
-source .venv/bin/activate
-set -a; source .env; set +a          # load the API key into this shell
-python scripts/clone_reference_voice.py               # clones + patches config.yaml
-python scripts/clone_reference_voice.py --force       # re-clone even if already set
-python scripts/clone_reference_voice.py --no-patch-config   # just print the values
-```
-
-It's idempotent: if `config.yaml` already points at an existing reference set,
-it exits without re-cloning. The two config keys it sets:
-
-```yaml
-    reference_set_dir: eval/data/kugel_reference
-    reference_voice_id: <printed voice_id>
-```
-
-To **opt out** (leave Test 2.4 skipping), set both back to `null` in
-`eval/config.yaml`.
-
-> **What Test 2.4 measures once enabled:** clone fidelity — how faithfully Kugel
-> reproduces the cloned LJSpeech speaker — not stock-voice quality. MCD
-> (DTW-aligned) is the most trustworthy of the three metrics.
+The voice-clone tooling (`scripts/clone_reference_voice.py`, `clone_voice()` in
+the client) is kept in the repo but **dormant** — not run by setup and not part
+of the suite. It's there in case Kugel later supplies ground-truth reference
+recordings that would make signal-quality metrics valid.
 
 ---
 
@@ -167,7 +144,7 @@ python -m eval.run all --dry-run        # verify config, no API calls
 ```
 
 Available TTS test names:
-`naturalness`, `intelligibility`, `prosody`, `signal_quality`, `latency`,
+`naturalness`, `intelligibility`, `prosody`, `latency`,
 `concurrency`, `edge_cases`, `long_form`
 
 ---

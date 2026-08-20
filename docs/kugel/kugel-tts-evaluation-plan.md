@@ -1,9 +1,10 @@
 # Evaluating `kugel-3` (KugelAudio TTS) in this harness
 
-End-to-end guide for running all TTS tests (2.1–2.8) against KugelAudio's
-`kugel-3` model. The harness reuses the same test modules and local scoring
-tools (Whisper, UTMOS/DNSMOS, ECAPA-TDNN) as the original multi-provider
-evaluation; only the TTS client changes.
+End-to-end guide for running the TTS test suite (2.1, 2.2, 2.3, 2.5, 2.6, 2.7,
+2.8 — signal quality 2.4 is retired, see §4a) against KugelAudio's `kugel-3`
+model. The harness reuses the same test modules and local scoring tools
+(Whisper, UTMOS/DNSMOS, ECAPA-TDNN) as the original multi-provider evaluation;
+only the TTS client changes.
 
 Source: [KugelAudio docs](https://docs.kugelaudio.com/).
 
@@ -68,53 +69,34 @@ tts:
     ws_endpoint: wss://api.kugelaudio.com/ws/tts
     voices_endpoint: https://api.kugelaudio.com/v1/voices
     request_timeout_s: 120
-    reference_set_dir: null    # Test 2.4 matched-speaker reference (see §4a)
-    reference_voice_id: null   # cloned voice used for Test 2.4
+    reference_set_dir: null    # dormant — used only by clone_reference_voice.py
+    reference_voice_id: null   # dormant — see §4a
 ```
 
 ---
 
-## 4a. Test 2.4 matched-speaker reference (enabled by default)
+## 4a. Test 2.4 (Signal Quality) — retired
 
-MCD only makes sense when the synthesized audio and the reference recording are
-the **same speaker**. A stock Kugel library voice has no ground-truth human
-recording, so we build one by cloning a single-speaker corpus (LJSpeech) into a
-Kugel voice.
+MCD/PESQ/STOI only make sense when the synthesized audio and the reference
+recording are the **same speaker, saying the same words, aligned in time**. A
+synthetic TTS voice has no ground-truth human recording, so there is nothing
+valid to compare against:
 
-**`setup.sh` does this automatically** (step 7) once your API key is in `.env`:
-it runs `clone_reference_voice.py`, which clones the voice, saves the reference
-recordings, and **patches `eval/config.yaml`** so Test 2.4 runs by default. No
-manual step needed.
+- We prototyped a workaround: clone a single-speaker corpus (LJSpeech) into a
+  Kugel voice and compare against the real LJSpeech recordings. Even so, MCD
+  stayed unreliable (wrong cepstral representation for the metric) and PESQ/STOI
+  collapsed to their floor (they need sample-level alignment, impossible for TTS
+  vs a human take).
+- **Test 2.4 is therefore not part of the suite.** Audio quality is covered by
+  **2.1** (naturalness), **2.2** (intelligibility), and **2.8** (voice
+  consistency).
 
-To run it yourself (or re-run):
-
-```bash
-set -a; source .env; set +a
-python scripts/clone_reference_voice.py                    # clone + patch config
-python scripts/clone_reference_voice.py --force            # re-clone if already set
-python scripts/clone_reference_voice.py --no-patch-config  # only print values
-```
-
-It uploads a few LJSpeech clips to `POST /v1/voices` to create the cloned voice,
-saves the remaining clips (WAV + transcript) as the reference set, and sets:
-
-```yaml
-    reference_set_dir: eval/data/kugel_reference
-    reference_voice_id: <printed voice_id>
-```
-
-The command is idempotent — if the config already points at an existing
-reference set, it exits without re-cloning. To **opt out**, set both keys back
-to `null`. Test 2.4 then synthesizes each reference transcript with the cloned
-voice and compares against the real recording.
-
-> **What this measures:** clone fidelity — how faithfully Kugel reproduces the
-> cloned LJSpeech speaker — **not** the quality of a stock library voice. Only
-> **MCD** (DTW-aligned mel-cepstral distortion, dB, lower = better) is reported.
-> PESQ and STOI are intrusive sample-aligned metrics: they assume the two
-> waveforms are the same utterance lined up in time, which is never true for TTS
-> vs a human recording, so they are **not reported**. Intelligibility is covered
-> by Test 2.2 (round-trip WER).
+The clone tooling (`scripts/clone_reference_voice.py` and `clone_voice()` in the
+client) stays in the repo but **dormant** — not run by setup, not wired into any
+test. It's kept for future use if Kugel provides ground-truth reference
+recordings per voice, which would make signal-quality metrics valid. To use it
+manually: `set -a; source .env; set +a` then
+`python scripts/clone_reference_voice.py`.
 
 ---
 
@@ -125,7 +107,6 @@ voice and compares against the real recording.
 | 2.1 Naturalness | REST batch | Unchanged — UTMOS/DNSMOS scored locally |
 | 2.2 Intelligibility | REST batch | Round-trip WER via local Whisper |
 | 2.3 Prosody | REST batch | Reference-free F0 + WPM |
-| 2.4 Signal Quality | REST batch | Runs against a **cloned matched-speaker reference** (set up by `setup.sh`, see §4a); measures clone fidelity. Self-skips only if the clone step was skipped |
 | 2.5 Streaming TTFB & RTF | **WebSocket** vs REST | WebSocket gives true TTFB; REST is chunked read |
 | 2.6 Throughput & Concurrency | REST (thread-pool + async) | `tts_concurrency_levels` = [1,5,10,20] |
 | 2.7 Edge Cases | REST batch | SSML/markup cases are plain-text robustness probes (Kugel has no documented SSML) |
@@ -134,8 +115,8 @@ voice and compares against the real recording.
 The client (`eval/tts/kugel_client.py`) mirrors the original `TTSClient` public
 surface — `synthesize_batch`, `synthesize_batch_rest`, `synthesize_stream`
 (WebSocket), `synthesize_stream_rest`, `save_synthesis`, `bytes_to_wav` — plus
-`clone_voice` (used only by the Test 2.4 bootstrap) — so the test modules call
-it through `build_tts_client(config)` without branching.
+`clone_voice` (dormant; used only by the voice-clone tooling) — so the test
+modules call it through `build_tts_client(config)` without branching.
 
 ---
 
@@ -144,10 +125,6 @@ it through `build_tts_client(config)` without branching.
 ```bash
 # Verify connectivity + schema first
 python -m eval.run phase0
-
-# Test 2.4's matched-speaker reference is already set up by setup.sh (§4a).
-# Only run this if that step was skipped, or to re-clone:
-#   python scripts/clone_reference_voice.py
 
 # Single tests while validating
 python -m eval.run tts --test naturalness
@@ -164,12 +141,9 @@ API key, writes to `results/run-<DD-MM-YY>/kugel/`).
 
 ## 6. Known caveats
 
-- **Test 2.4** runs against the cloned matched-speaker reference set up by
-  `setup.sh` (§4a). It measures **clone fidelity** (how well Kugel reproduces
-  the cloned LJSpeech speaker), not stock-voice quality — label it as such in
-  any report. Only **MCD** (DTW-aligned) is reported; PESQ/STOI don't apply to
-  non-parallel TTS and are omitted (intelligibility → Test 2.2).
-  It self-skips only if the clone step was skipped (no API key / HF at setup).
+- **Signal quality (former Test 2.4)** is retired — see §4a. MCD/PESQ/STOI need
+  a same-speaker parallel reference that a TTS service can't provide. Quality is
+  covered by 2.1 (naturalness), 2.2 (intelligibility), and 2.8 (consistency).
 - **SSML** is not documented for KugelAudio; edge-case SSML inputs are scored as
   plain-text robustness (a pass means the tags didn't error, not that they were
   interpreted).

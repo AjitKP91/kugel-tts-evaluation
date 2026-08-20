@@ -17,15 +17,18 @@ def _run_phase0(config):
 
 def _run_tts_all(config):
     from eval.tts import (
-        naturalness, intelligibility, prosody, signal_quality,
+        naturalness, intelligibility, prosody,
         latency, concurrency, edge_cases, long_form,
     )
     results = []
+    # Test 2.4 (Signal Quality: MCD/PESQ/STOI) retired — those metrics require a
+    # same-speaker parallel reference recording, which isn't available for a TTS
+    # service. Quality is covered by 2.1 (naturalness), 2.2 (intelligibility),
+    # and 2.8 (voice consistency). See docs/kugel for details.
     tests = [
         ("2.1", naturalness),
         ("2.2", intelligibility),
         ("2.3", prosody),
-        ("2.4", signal_quality),
         ("2.5", latency),
         ("2.6", concurrency),
         ("2.7", edge_cases),
@@ -47,7 +50,6 @@ def _run_single_tts(name: str, config):
         "naturalness": "eval.tts.naturalness",
         "intelligibility": "eval.tts.intelligibility",
         "prosody": "eval.tts.prosody",
-        "signal_quality": "eval.tts.signal_quality",
         "latency": "eval.tts.latency",
         "concurrency": "eval.tts.concurrency",
         "edge_cases": "eval.tts.edge_cases",
@@ -56,7 +58,7 @@ def _run_single_tts(name: str, config):
     key = name.replace("tts.", "").replace("2.", "").strip()
     num_map = {
         "1": "naturalness", "2": "intelligibility", "3": "prosody",
-        "4": "signal_quality", "5": "latency", "6": "concurrency",
+        "5": "latency", "6": "concurrency",
         "7": "edge_cases", "8": "long_form",
     }
     if key in num_map:
