@@ -1,0 +1,6 @@
+category,n_sentences,round_trip_wer,round_trip_cer,normalizer
+harvard,80,0.0148,0.0148,whisper_english
+technical,50,0.0163,0.0163,whisper_english
+numbers_basic,20,0.0143,0.0143,whisper_english
+numbers_edge,30,0.256,0.256,whisper_english
+conversational,50,0.0064,0.0064,whisper_english

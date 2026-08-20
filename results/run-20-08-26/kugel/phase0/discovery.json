@@ -1,0 +1,54 @@
+{
+  "connectivity": {
+    "rest_tts": {
+      "status": "ok",
+      "latency_s": 1.3617902450000656,
+      "audio_len_bytes": 76800
+    },
+    "ws_tts": {
+      "status": "ok",
+      "latency_s": 1.1854252120001547,
+      "ttfb_s": 0.5268529859999944,
+      "n_chunks": 16
+    },
+    "network_rtt_s": 0.12323693100006494
+  },
+  "tts_schema": {
+    "batch_audio_bytes": 64000,
+    "batch_audio_duration_s": 1.3333333333333333,
+    "batch_latency_s": 0.6745952779999698,
+    "sample_rate": 24000,
+    "stream_ttfb": 0.4473450640000465,
+    "stream_n_chunks": 15,
+    "stream_audio_duration_s": 1.8666666666666667,
+    "stream_total_latency_s": 1.073068375000048,
+    "sample_saved": "results/run-20-08-26/kugel/phase0/tts_sample.wav"
+  },
+  "parameters": {
+    "tts_sample_rates": {
+      "8000": "ok",
+      "16000": "ok",
+      "22050": "ok",
+      "24000": "ok",
+      "44100": "ok"
+    },
+    "tts_markup": "accepted"
+  },
+  "smoke_tests": {
+    "tts_rest": {
+      "status": "pass",
+      "audio_duration_s": 5.6
+    },
+    "tts_ws_stream": {
+      "status": "pass",
+      "ttfb_s": 0.45279269000002387
+    }
+  },
+  "cold_start": {
+    "tts": {
+      "t_first_s": 1.451034990999915,
+      "t_warm_mean_s": 1.2681897744000026,
+      "cold_ratio": 1.144178119309012
+    }
+  }
+}
