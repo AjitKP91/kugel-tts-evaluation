@@ -162,6 +162,55 @@ tbody tr:hover { background: #fafbfc; }
 .info-box strong { color: var(--text); }
 code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; }
 
+/* Info tooltip */
+body.tip-open .card:hover { transform: none; }
+.info-tip {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%; background: var(--code-bg);
+  color: var(--text-muted); font-size: 0.72rem; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--border); flex-shrink: 0;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease; z-index: 1;
+}
+.info-tip:hover:not(.open) { background: var(--accent); color: #fff; border-color: var(--accent); transform: scale(1.1); }
+.info-tip.open { background: var(--accent); color: #fff; border-color: var(--accent); z-index: 1001; }
+.tip-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 999;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+}
+.tip-backdrop.active { display: block; }
+.info-tip-content {
+  display: none; position: fixed; z-index: 1000;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 480px; max-height: 75vh; overflow-y: auto;
+  padding: 28px 28px 22px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  box-shadow: 0 25px 60px -12px rgba(0,0,0,0.3), 0 12px 24px -8px rgba(0,0,0,0.15);
+  font-size: 0.86rem; font-weight: 400; color: var(--text); line-height: 1.7;
+  text-transform: none; letter-spacing: 0; cursor: default; text-align: left;
+}
+.info-tip.open .info-tip-content { display: block; }
+.info-tip-content .tip-title {
+  font-weight: 700; font-size: 1rem; color: var(--text);
+  margin: 0 0 14px; padding-bottom: 10px; border-bottom: 2px solid var(--accent);
+}
+.tip-close {
+  position: absolute; top: 12px; right: 14px; background: none; border: none;
+  font-size: 1.4rem; color: var(--text-muted); cursor: pointer; padding: 4px 8px;
+  border-radius: 6px; line-height: 1; transition: all 0.15s;
+}
+.tip-close:hover { background: var(--fail-bg); color: var(--fail); }
+.info-tip-content dl { margin: 10px 0 14px; }
+.info-tip-content dt { font-weight: 600; font-size: 0.84rem; color: var(--accent); margin-top: 12px; }
+.info-tip-content dt:first-child { margin-top: 0; }
+.info-tip-content dd { margin: 3px 0 0 0; color: var(--text-muted); }
+.info-tip-content p { margin: 0 0 10px; }
+.info-tip-content p:last-child { margin-bottom: 0; }
+@media (max-width: 768px) {
+  .info-tip-content { width: calc(100vw - 32px); max-height: 70vh; padding: 22px 20px 18px; }
+}
+
 footer {
   border-top: 1px solid var(--border); padding: 24px; text-align: center;
   color: var(--text-muted); font-size: 0.8rem; background: var(--surface);
@@ -215,6 +264,7 @@ footer {
 <div class="card">
   <div class="card-header">
     <h2>Endpoint Reachability &amp; Schema &mdash; <code>api.kugelaudio.com</code></h2>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Phase 0 &mdash; Connectivity &amp; Discovery</div><p>Before any scored test runs, this phase confirms the service is reachable, the credentials work, and characterises the response so later tests interpret it correctly.</p><dl><dt>Endpoint latency</dt><dd>A short sentence is synthesised on both the REST and WebSocket paths. The reported time is the full round-trip: network transfer + model inference.</dd><dt>WebSocket TTFB</dt><dd>Time to First Byte &mdash; how quickly the first chunk of audio arrives over the streaming socket after the request is sent.</dd><dt>Network RTT</dt><dd>A lightweight request with no model work &mdash; the raw network round-trip. The gap between this and endpoint latency is the model's own contribution.</dd><dt>Sample rates</dt><dd>The API is probed at 8 / 16 / 22.05 / 24 / 44.1 kHz to confirm it accepts each; audio is generated natively at 24 kHz.</dd><dt>Cold-start ratio</dt><dd>First request after idle &divide; the mean of 10 warm requests. Near 1.0 means no startup penalty &mdash; the model is always loaded.</dd></dl></div></span>
     <span class="badge badge-pass">All OK</span>
   </div>
   <div class="card-body">
@@ -243,6 +293,7 @@ footer {
   <div class="card-header">
     <h2>2.1 Automated Naturalness</h2>
     <span class="test-id">UTMOS &middot; DNSMOS &middot; 200 sentences</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Measures how natural the synthesised speech sounds, with no reference audio required &mdash; two learned models score the audio directly.</p><dl><dt>UTMOS</dt><dd>A neural network trained to predict human Mean Opinion Score on a 1&ndash;5 scale. Above 4.0 is considered near-human; below 3.5 sounds noticeably synthetic. This is the strongest single naturalness signal in the suite.</dd><dt>DNSMOS OVRL / SIG / BAK</dt><dd>A three-part MOS estimator: OVRL (overall), SIG (speech-signal quality), BAK (background quietness). It is calibrated on noise-suppressed real speech, so it tends to read lower on pristine synthetic audio &mdash; SIG is usually the most relevant sub-score for TTS.</dd><dt>P50 / P90</dt><dd>Median and 90th-percentile scores across the 200 sentences. A high median with a low minimum means most output is excellent with a few weaker sentences.</dd></dl><p>200 sentences are synthesised once each and scored locally on GPU.</p></div></span>
     <span class="badge badge-pass">Good</span>
   </div>
   <div class="card-body">
@@ -281,6 +332,7 @@ footer {
   <div class="card-header">
     <h2>2.2 Intelligibility &mdash; Round-Trip WER</h2>
     <span class="test-id">Whisper large-v3 + EnglishTextNormalizer &middot; 230 sentences</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Checks whether the synthesised speech is clear enough to be transcribed back to the original words &mdash; a proxy for how intelligible it is.</p><dl><dt>Round-trip WER</dt><dd>The text is synthesised to audio, then a speech recogniser (Whisper large-v3) transcribes it back. Word Error Rate is the percentage of words the transcript gets wrong versus the original. Clean TTS yields near-zero WER; human-level recognition sits around 5%.</dd><dt>CER</dt><dd>Character Error Rate &mdash; the same idea at the character level, catching minor slips WER might over-penalise.</dd><dt>EnglishTextNormalizer</dt><dd>Both sides are canonicalised (digit&harr;word, currency, contractions, units) before comparison, so a spoken &ldquo;one thousand&rdquo; isn't falsely counted wrong against a written &ldquo;1000&rdquo;.</dd><dt>Categories</dt><dd>Sentences span Harvard (phonetically balanced), technical jargon, basic numbers, edge-case number notation, and conversational text &mdash; to expose where intelligibility holds or slips.</dd></dl></div></span>
     <span class="badge badge-pass">Pass on 4 / 5 categories</span>
   </div>
   <div class="card-body">
@@ -313,6 +365,7 @@ footer {
   <div class="card-header">
     <h2>2.3 Prosody (reference-free)</h2>
     <span class="test-id">F0 &amp; speaking-rate distribution &middot; 50 sentences</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Characterises the &ldquo;musicality&rdquo; of the voice &mdash; its pitch and pace &mdash; measured directly on the audio without any reference.</p><dl><dt>F0 (fundamental frequency)</dt><dd>The pitch of the voice in Hz. The <em>mean</em> places the voice (a typical adult female voice sits ~165&ndash;220 Hz); the <em>std</em> and <em>range</em> show intonation &mdash; too little spread sounds flat/monotone, a natural range carries expression.</dd><dt>Speaking rate (WPM)</dt><dd>Words per minute over voiced audio. Natural conversational speech is roughly 140&ndash;200 WPM; the per-sentence spread reflects normal pacing differences across content.</dd></dl><p>Reference-free: there is no &ldquo;correct&rdquo; target &mdash; the goal is to confirm pitch and pace fall in a natural, expressive range rather than sounding robotic or rushed.</p></div></span>
     <span class="badge badge-pass">Natural range</span>
   </div>
   <div class="card-body">
@@ -341,6 +394,7 @@ footer {
   <div class="card-header">
     <h2>2.5 Streaming TTFB &amp; RTF</h2>
     <span class="test-id">WebSocket vs REST &middot; 5 length buckets &times; 50 reps</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Measures responsiveness &mdash; how fast audio starts, and whether generation keeps ahead of playback &mdash; across five input lengths on both interfaces.</p><dl><dt>TTFB (Time to First Byte)</dt><dd>How long until the first chunk of audio arrives after the request is sent. This is what a user perceives as responsiveness; above ~500 ms starts to feel laggy in conversation.</dd><dt>RTF (Real-Time Factor)</dt><dd>Generation time &divide; audio duration. Below 1.0 means audio is produced faster than it plays &mdash; required for real-time streaming. 0.2 means a second of audio is generated in 0.2 s.</dd><dt>P50 / P99</dt><dd>Median and 99th-percentile. A large P50&rarr;P99 gap means occasional slow outliers &mdash; the tail matters for consistent streaming.</dd><dt>WebSocket vs REST</dt><dd>WebSocket streams chunks as they generate (true first-chunk TTFB); REST reads the response in chunks. Comparing both shows which path gives the more stable latency.</dd></dl></div></span>
     <span class="badge badge-pass">Real-time capable</span>
   </div>
   <div class="card-body">
@@ -380,6 +434,7 @@ footer {
   <div class="card-header">
     <h2>2.6 Throughput &amp; Concurrency</h2>
     <span class="test-id">N = 1, 5, 10, 20 &middot; 50 requests per level</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Tests how the service behaves under parallel load &mdash; does it keep up as more requests arrive at once, and where does it start to push back?</p><dl><dt>Concurrency (N)</dt><dd>The number of requests in flight simultaneously, simulating N users at once. Run at N = 1, 5, 10, 20.</dd><dt>RPS (requests per second)</dt><dd>Sustained throughput at each level. Ideally it climbs with N until the service saturates.</dd><dt>Latency P50 / P99</dt><dd>Per-request timing under load. Rising latency or a widening P99 signals the service is straining.</dd><dt>Error rate / 429</dt><dd>HTTP 429 &ldquo;Too Many Requests&rdquo; is the service rate-limiting the client. A burst of 429s marks the concurrency ceiling &mdash; the point beyond which requests should be throttled client-side and retried with backoff.</dd></dl><p>Two paths are exercised: a synchronous thread-pool and an async REST client.</p></div></span>
     <span class="badge badge-flag">Ceiling found at N=20 (REST)</span>
   </div>
   <div class="card-body">
@@ -416,6 +471,7 @@ footer {
   <div class="card-header">
     <h2>2.7 Edge Cases &amp; Input Robustness</h2>
     <span class="test-id">99 cases across 17 categories</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Stress-tests the engine against unusual, malformed, and boundary inputs to confirm it degrades gracefully rather than crashing or hanging.</p><dl><dt>Categories</dt><dd>17 groups &mdash; abbreviations, numbers, punctuation, proper nouns, URLs &amp; emails, code snippets, mixed case, repetition, special characters, markup, very-long and boundary-length text, empty/whitespace, and more.</dd><dt>Pass / fail / degraded / timeout</dt><dd>Each input is synthesised and classified. <em>Pass</em> = valid audio returned; <em>fail</em> = the request errored; <em>degraded</em> = audio too short/empty; <em>timeout</em> = no response in the deadline.</dd><dt>Empty input</dt><dd>Whitespace-only input is <em>expected</em> to be rejected &mdash; the API requires a non-whitespace character &mdash; so those &ldquo;fails&rdquo; are correct behaviour, not defects.</dd><dt>Markup</dt><dd>Tag-shaped input is scored as plain-text robustness: a pass means the characters didn't error, not that markup was interpreted (there is no documented SSML support).</dd></dl></div></span>
     <span class="badge badge-pass">16 / 17 categories at 100%</span>
   </div>
   <div class="card-body">
@@ -445,6 +501,7 @@ footer {
   <div class="card-header">
     <h2>2.8 Long-Form Voice Consistency</h2>
     <span class="test-id">ECAPA-TDNN speaker similarity &middot; 5 multi-paragraph passages</span>
+    <span class="info-tip" tabindex="0" style="margin-left:auto">?<div class="info-tip-content"><button class="tip-close">&times;</button><div class="tip-title">Understanding This Test</div><p>Checks whether the voice stays the same across a long passage &mdash; does its identity, pitch, or pace drift from the first paragraph to the last?</p><dl><dt>Speaker similarity (ECAPA-TDNN)</dt><dd>Each paragraph is turned into a speaker &ldquo;fingerprint&rdquo; (embedding) by ECAPA-TDNN, a speaker-verification model. Paragraphs are compared; a similarity near 1.0 means the same voice throughout, lower values mean the identity is drifting.</dd><dt>F0 drift</dt><dd>How much the average pitch wanders across paragraphs, in Hz. Small drift against the ~187 Hz baseline means the voice stays anchored.</dd><dt>WPM drift</dt><dd>Variation in speaking rate across paragraphs. Modest, content-dependent variation is natural; large swings would signal instability.</dd></dl><p>Five multi-paragraph passages on different topics are synthesised and analysed paragraph by paragraph.</p></div></span>
     <span class="badge badge-pass">Stable</span>
   </div>
   <div class="card-body">
@@ -528,6 +585,40 @@ footer {
   <p>Kugel-TTS Model Evaluation Report &middot; generated from <code>results/run-20-08-26/kugel/</code></p>
   <p style="margin-top: 8px;">For methodology, thresholds, and harness internals see <code>docs/kugel/kugel-tts-evaluation-plan.md</code> and <code>RUNBOOK.md</code>.</p>
 </footer>
+
+<div class="tip-backdrop" id="tipBackdrop"></div>
+
+<script>
+var backdrop = document.getElementById('tipBackdrop');
+function closeAllTips() {
+  document.querySelectorAll('.info-tip.open').forEach(function(t) { t.classList.remove('open'); });
+  backdrop.classList.remove('active');
+  document.body.classList.remove('tip-open');
+}
+function openTip(el) {
+  var wasOpen = el.classList.contains('open');
+  closeAllTips();
+  if (!wasOpen) {
+    el.classList.add('open');
+    backdrop.classList.add('active');
+    document.body.classList.add('tip-open');
+  }
+}
+document.querySelectorAll('.info-tip').forEach(function(tip) {
+  tip.addEventListener('click', function(e) {
+    if (e.target.closest('.info-tip-content') && !e.target.classList.contains('tip-close')) {
+      e.stopPropagation(); return;
+    }
+    if (e.target.classList.contains('tip-close')) {
+      e.stopPropagation(); closeAllTips(); return;
+    }
+    e.stopPropagation();
+    openTip(tip);
+  });
+});
+backdrop.addEventListener('click', closeAllTips);
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeAllTips(); });
+</script>
 
 </body>
 </html>

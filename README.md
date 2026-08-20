@@ -8,8 +8,6 @@ Automated evaluation harness for KugelAudio's Text-to-Speech model:
 
 KugelAudio is a **REST + WebSocket** API (no gRPC). All measurements are made **client-side** — no access to server internals is assumed. Results land under `results/run-<DD-MM-YY>/kugel/` so back-to-back runs don't collide.
 
-> **History note.** This harness began as a multi-provider evaluation for NVIDIA Riva (Parakeet STT + Magpie TTS on SAP AI Core) and Google Gemini-TTS. This repo is the **Kugel-only** cut: STT has been removed (KugelAudio has no ASR product) and the provider abstraction (`eval/tts/client_factory.py`) dispatches to a KugelAudio client. The `provider` switch in `eval/config.yaml` still supports `riva` for the dormant Magpie path.
-
 ---
 
 ## What It Tests
@@ -115,20 +113,6 @@ Every test writes results immediately to `results/<suite>/<test>/`:
 - `*.wav` — synthesized audio files (deleted after scoring)
 
 After all tests complete, `results/report.html` contains a full HTML report with per-test tables and pass/fail badges.
-
----
-
-## Key Design Decisions
-
-**Provider abstraction** — test modules build their client via `eval/tts/client_factory.py`, which dispatches on `tts.provider` in the config. The KugelAudio client mirrors the same public surface as the original Riva client, so the tests are provider-agnostic.
-
-**Idempotent resume** — every API call is written to JSONL immediately. Re-running a test skips already-completed items, so a crashed run picks up where it left off.
-
-**Both interfaces** — every latency-sensitive test runs on both WebSocket (streaming) and REST so the two can be compared directly.
-
-**Client-side only** — all metrics are measured in the harness. No server access required.
-
-**Local GPU for evaluation tools** — the model under test runs remotely on KugelAudio. The VM GPU is used only for local evaluation tools: Whisper large-v3 (round-trip WER), UTMOS/DNSMOS (naturalness scoring), and SpeechBrain ECAPA-TDNN (speaker similarity).
 
 ---
 
