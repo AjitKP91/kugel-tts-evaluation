@@ -11,8 +11,8 @@ pretrained_models/
 *.pt
 *.onnx
 
-# Results and generated audio
-results/
+# Generated audio (never commit — matches nvidia/gemini repos; results/ CSVs +
+# JSONL + report.html ARE committed, only the audio is excluded)
 *.wav
 *.pcm
 scripts/_tmux_launcher.sh
