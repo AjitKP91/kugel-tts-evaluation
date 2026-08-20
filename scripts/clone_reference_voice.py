@@ -143,12 +143,14 @@ def main() -> None:
     ref_rows = rows[args.n_clone : total]
 
     # 1. Write clone-input WAVs and upload them to create the cloned voice.
+    #    Write 16-bit PCM (subtype PCM_16) — the default float subtype from a
+    #    float32 array produces a float WAV that some backends reject.
     clone_paths = []
     for i, item in enumerate(clone_rows):
         audio = np.array(item["audio"]["array"], dtype=np.float32)
         sr = item["audio"]["sampling_rate"]
         p = clone_dir / f"clone_{i:03d}.wav"
-        sf.write(str(p), audio, sr)
+        sf.write(str(p), audio, sr, subtype="PCM_16")
         clone_paths.append(p)
 
     logger.info("Uploading %d reference clips to POST /v1/voices ...", len(clone_paths))

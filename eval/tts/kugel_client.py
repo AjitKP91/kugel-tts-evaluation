@@ -114,7 +114,7 @@ class KugelTTSClient:
         name: str,
         sex: str = "female",
         description: str = "",
-        category: str = "cloned",
+        category: str = "conversational",
     ) -> dict[str, Any]:
         """Create a cloned voice from one or more clean reference recordings.
 
@@ -140,7 +140,14 @@ class KugelTTSClient:
                 headers={"Authorization": f"Bearer {self.cfg.api_key}"},
                 timeout=self.cfg.request_timeout_s,
             )
-            resp.raise_for_status()
+            if not resp.ok:
+                # Surface the API's error body — a bare raise_for_status() hides
+                # the reason for a 400 (bad category, unsupported audio, etc.).
+                body = resp.text[:1000]
+                raise requests.HTTPError(
+                    f"{resp.status_code} from POST {self.cfg.voices_endpoint}: {body}",
+                    response=resp,
+                )
             return resp.json()
         finally:
             for fh in opened:
