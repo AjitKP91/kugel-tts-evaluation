@@ -16,7 +16,7 @@ endpoints.
 | 2.1 | Naturalness | UTMOS and DNSMOS (OVRL/SIG/BAK) on 200 synthesized sentences |
 | 2.2 | Intelligibility | Round-trip WER: synthesize → transcribe with Whisper large-v3 → compare, across 5 sentence categories (Harvard, technical, numbers-basic, numbers-edge, conversational) |
 | 2.3 | Prosody | F0 mean/std/range, speaking rate (WPM), rhythm (nPVI) — reference-free |
-| 2.4 | Signal Quality | Mel-cepstral distortion (MCD), PESQ, STOI against a matched-speaker reference. When the reference speaker is produced by voice cloning, this measures clone fidelity (how faithfully the engine reproduces the reference speaker); self-skips when no matched-speaker reference is available |
+| 2.4 | Signal Quality | Mel-cepstral distortion (MCD), DTW-aligned, against a matched-speaker reference. When the reference speaker is produced by voice cloning, this measures clone fidelity (how faithfully the engine reproduces the reference speaker). PESQ/STOI are not reported — they are intrusive sample-aligned metrics that don't apply to non-parallel TTS (intelligibility is covered by Test 2.2). Self-skips when no matched-speaker reference is available |
 | 2.5 | Streaming Latency | Time-to-first-byte and RTF across 5 text-length buckets × 2 interfaces (streaming vs batch) |
 | 2.6 | Throughput & Concurrency | Requests/sec, P50/P99 latency, error rate at N = 1, 5, 10, 20 concurrent |
 | 2.7 | Edge Cases | ~100 cases across **17 categories** (see below) |

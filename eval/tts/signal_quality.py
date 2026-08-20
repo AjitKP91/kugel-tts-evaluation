@@ -19,15 +19,30 @@ TARGET_SR = 16000
 
 
 def compute_mcd(ref_path: str, syn_path: str, n_mfcc: int = 13) -> float:
-    """Mel Cepstral Distortion via librosa + DTW."""
+    """Mel-Cepstral Distortion via librosa MFCC + DTW alignment.
+
+    Standard MCD: exclude coefficient 0 (log-energy — differs with loudness and
+    would dominate), align frames with DTW (handles the timing mismatch between
+    a TTS clip and a human recording of the same text), then average the
+    per-frame Euclidean distance over the *warping-path* length. Typical values
+    are ~4–8 dB; the earlier version divided by the reference frame count and
+    kept c0, producing meaningless ~900 dB numbers.
+    """
     from dtw import dtw
 
     ref, sr = librosa.load(ref_path, sr=22050)
     syn, _ = librosa.load(syn_path, sr=22050)
-    ref_mfcc = librosa.feature.mfcc(y=ref, sr=sr, n_mfcc=n_mfcc).T
-    syn_mfcc = librosa.feature.mfcc(y=syn, sr=sr, n_mfcc=n_mfcc).T
+    # n_mfcc+1 coefficients, then drop c0 -> n_mfcc spectral coefficients.
+    ref_mfcc = librosa.feature.mfcc(y=ref, sr=sr, n_mfcc=n_mfcc + 1)[1:].T
+    syn_mfcc = librosa.feature.mfcc(y=syn, sr=sr, n_mfcc=n_mfcc + 1)[1:].T
     alignment = dtw(ref_mfcc, syn_mfcc, dist_method="euclidean")
-    return (10.0 * np.sqrt(2) / np.log(10)) * alignment.distance / len(ref_mfcc)
+
+    # Mean Euclidean distance along the aligned path (not the raw accumulated
+    # distance / ref length). index1 length == warping-path length.
+    diffs = ref_mfcc[alignment.index1] - syn_mfcc[alignment.index2]
+    per_frame = np.sqrt(np.sum(diffs ** 2, axis=1))
+    mean_dist = float(np.mean(per_frame))
+    return (10.0 * np.sqrt(2) / np.log(10)) * mean_dist
 
 
 def compute_pesq_score(ref_path: str, syn_path: str) -> float | None:
@@ -150,8 +165,6 @@ def run(config: Config) -> dict:
         return {"test": "2.4", "name": "signal_quality", "results": {"skipped": True}}
 
     mcd_values = []
-    pesq_values = []
-    stoi_values = []
 
     for i, item in enumerate(tqdm(ref_items, desc="Signal quality")):
         text = item["text"]
@@ -164,22 +177,20 @@ def run(config: Config) -> dict:
             else:
                 tts_client.save_synthesis(text, str(syn_path))
 
+            # Only MCD is meaningful here: it DTW-aligns the two signals, so the
+            # timing mismatch between a TTS clip and a human recording of the
+            # same text is handled. PESQ and STOI are intrusive, sample-aligned
+            # metrics that assume the two waveforms are the same utterance lined
+            # up in time — which is never true for TTS vs a reference recording —
+            # so they collapse to their floor and are not reported. Intelligibility
+            # is covered by Test 2.2 (round-trip WER) instead.
             mcd = compute_mcd(ref_path_i, str(syn_path))
-            pesq_val = compute_pesq_score(ref_path_i, str(syn_path))
-            stoi_val = compute_stoi_score(ref_path_i, str(syn_path))
-
             mcd_values.append(mcd)
-            if pesq_val is not None:
-                pesq_values.append(pesq_val)
-            if stoi_val is not None:
-                stoi_values.append(stoi_val)
 
             write_jsonl(jsonl_path, {
                 "id": f"sigq_{i}",
                 "text": text,
                 "mcd": round(mcd, 2),
-                "pesq": round(pesq_val, 3) if pesq_val else None,
-                "stoi": round(stoi_val, 4) if stoi_val else None,
             })
         except Exception as e:
             logger.warning("Failed signal quality %d: %s", i, e)
@@ -189,26 +200,26 @@ def run(config: Config) -> dict:
                 Path(ref_path_i).unlink(missing_ok=True)
 
     summary = {
+        "metric": "MCD (mel-cepstral distortion, DTW-aligned), dB — lower is better",
         "reference_type": (
-            "cloned matched-speaker (LJSpeech → Kugel voice); metrics reflect "
+            "cloned matched-speaker (LJSpeech → Kugel voice); reflects "
             "clone fidelity, not stock-voice quality"
             if provider == "kugel"
             else "LJSpeech reference (may differ from synthesized speaker)"
         ),
         "reference_voice_id": ref_voice_id,
         "mcd_mean": round(np.mean(mcd_values), 2) if mcd_values else None,
-        "pesq_mean": round(np.mean(pesq_values), 3) if pesq_values else None,
-        "stoi_mean": round(np.mean(stoi_values), 4) if stoi_values else None,
+        "mcd_min": round(float(np.min(mcd_values)), 2) if mcd_values else None,
+        "mcd_max": round(float(np.max(mcd_values)), 2) if mcd_values else None,
+        "pesq_stoi": "not applicable — intrusive sample-aligned metrics don't apply to non-parallel TTS; see Test 2.2 for intelligibility",
         "n_samples": len(mcd_values),
     }
 
     save_summary_csv(results_dir / "summary.csv", [summary])
 
     if mcd_values:
-        logger.info("MCD: %.1f dB, PESQ: %.2f, STOI: %.3f",
-            np.mean(mcd_values),
-            np.mean(pesq_values) if pesq_values else 0,
-            np.mean(stoi_values) if stoi_values else 0,
+        logger.info("MCD: mean=%.2f dB (min=%.2f, max=%.2f) over %d clips  [PESQ/STOI n/a for non-parallel TTS]",
+            np.mean(mcd_values), np.min(mcd_values), np.max(mcd_values), len(mcd_values),
         )
 
     return {"test": "2.4", "name": "signal_quality", "results": summary}

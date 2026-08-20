@@ -76,10 +76,10 @@ tts:
 
 ## 4a. Test 2.4 matched-speaker reference (enabled by default)
 
-MCD / PESQ / STOI only make sense when the synthesized audio and the reference
-recording are the **same speaker**. A stock Kugel library voice has no
-ground-truth human recording, so we build one by cloning a single-speaker
-corpus (LJSpeech) into a Kugel voice.
+MCD only makes sense when the synthesized audio and the reference recording are
+the **same speaker**. A stock Kugel library voice has no ground-truth human
+recording, so we build one by cloning a single-speaker corpus (LJSpeech) into a
+Kugel voice.
 
 **`setup.sh` does this automatically** (step 7) once your API key is in `.env`:
 it runs `clone_reference_voice.py`, which clones the voice, saves the reference
@@ -109,10 +109,12 @@ to `null`. Test 2.4 then synthesizes each reference transcript with the cloned
 voice and compares against the real recording.
 
 > **What this measures:** clone fidelity — how faithfully Kugel reproduces the
-> cloned LJSpeech speaker — **not** the quality of a stock library voice. It is
-> the only speaker-matched way to run these metrics. MCD (DTW-aligned) is the
-> most reliable of the three; PESQ/STOI assume rough time-alignment and should
-> be read as indicative.
+> cloned LJSpeech speaker — **not** the quality of a stock library voice. Only
+> **MCD** (DTW-aligned mel-cepstral distortion, dB, lower = better) is reported.
+> PESQ and STOI are intrusive sample-aligned metrics: they assume the two
+> waveforms are the same utterance lined up in time, which is never true for TTS
+> vs a human recording, so they are **not reported**. Intelligibility is covered
+> by Test 2.2 (round-trip WER).
 
 ---
 
@@ -165,7 +167,8 @@ API key, writes to `results/run-<DD-MM-YY>/kugel/`).
 - **Test 2.4** runs against the cloned matched-speaker reference set up by
   `setup.sh` (§4a). It measures **clone fidelity** (how well Kugel reproduces
   the cloned LJSpeech speaker), not stock-voice quality — label it as such in
-  any report. MCD (DTW-aligned) is the most trustworthy of the three metrics.
+  any report. Only **MCD** (DTW-aligned) is reported; PESQ/STOI don't apply to
+  non-parallel TTS and are omitted (intelligibility → Test 2.2).
   It self-skips only if the clone step was skipped (no API key / HF at setup).
 - **SSML** is not documented for KugelAudio; edge-case SSML inputs are scored as
   plain-text robustness (a pass means the tags didn't error, not that they were
