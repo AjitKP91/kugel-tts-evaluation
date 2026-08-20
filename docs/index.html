@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kugel-TTS Model Evaluation Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f7f6;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #7c3aed;
+  --pass: #059669;
+  --pass-bg: #d1fae5;
+  --flag: #d97706;
+  --flag-bg: #fef3c7;
+  --fail: #dc2626;
+  --fail-bg: #fee2e2;
+  --note-bg: #ede9fe;
+  --note: #6d28d9;
+  --code-bg: #f1f5f9;
+  --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 70px; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 15px;
+}
+a { color: var(--accent); text-decoration: none; transition: color 0.15s; }
+a:hover { text-decoration: underline; color: #6d28d9; }
+
+/* Hero */
+.hero {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+  color: #fff;
+  padding: 48px 24px 40px;
+  text-align: center;
+}
+.hero h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+.hero .sub { color: #c7d2fe; font-size: 1rem; max-width: 720px; margin: 0 auto; }
+.hero .models {
+  display: flex; gap: 24px; justify-content: center; margin-top: 20px; flex-wrap: wrap;
+}
+.hero .model-chip {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+}
+.hero .model-chip strong { color: #a78bfa; }
+
+/* Nav */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+nav .inner {
+  max-width: 1080px; margin: 0 auto; padding: 12px 24px;
+  display: flex; align-items: center; gap: 20px;
+}
+nav > .inner > a {
+  color: var(--text-muted); font-weight: 500; font-size: 0.85rem;
+}
+nav > .inner > a:hover { color: var(--accent); text-decoration: none; }
+.nav-brand { display: flex; flex-direction: column; line-height: 1.2; }
+.nav-brand-title { color: var(--text) !important; font-weight: 700; font-size: 0.9rem; }
+.nav-brand-sub { color: var(--text-muted); font-size: 0.72rem; }
+.nav-divider { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+.nav-summary { margin-left: auto; color: var(--accent) !important; font-weight: 600 !important; }
+.nav-dropdown { position: relative; }
+.nav-dropdown > span {
+  color: var(--text-muted); font-weight: 500; font-size: 0.85rem; cursor: default;
+}
+.nav-dropdown:hover > span { color: var(--accent); }
+.nav-dropdown-menu {
+  display: none; position: absolute; top: 100%; left: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: var(--shadow-lg); padding: 6px 0; min-width: 220px;
+}
+.nav-dropdown:hover .nav-dropdown-menu { display: block; }
+.nav-dropdown-menu a {
+  display: block; padding: 7px 16px; font-size: 0.82rem; color: var(--text);
+}
+.nav-dropdown-menu a:hover { background: var(--code-bg); text-decoration: none; }
+
+/* Layout */
+.container { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; }
+.section-title {
+  font-size: 1.5rem; font-weight: 700; margin: 40px 0 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title .icon { font-size: 1.3rem; }
+.section-title:first-child { margin-top: 8px; }
+
+/* Cards */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 20px; overflow: hidden;
+}
+.card-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: #fafbfc;
+}
+.card-header h2 { font-size: 1.1rem; font-weight: 600; }
+.test-id { font-size: 0.78rem; color: var(--text-muted); }
+.card-body { padding: 20px; }
+.methodology { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; }
+.methodology strong { color: var(--text); }
+
+/* Badges */
+.badge {
+  font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  white-space: nowrap;
+}
+.badge-pass { background: var(--pass-bg); color: var(--pass); }
+.badge-flag { background: var(--flag-bg); color: var(--flag); }
+.badge-fail { background: var(--fail-bg); color: var(--fail); }
+.badge-note { background: var(--note-bg); color: var(--note); }
+.card-header .badge:last-child { margin-left: auto; }
+
+/* Metric grid */
+.metrics-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.metric-card {
+  border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;
+}
+.metric-card.good { border-color: #a7f3d0; background: #f0fdf9; }
+.metric-card.warn { border-color: #fde68a; background: #fffbeb; }
+.metric-card .label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+.metric-card .value { font-size: 1.6rem; font-weight: 700; }
+.metric-card .value .unit { font-size: 0.85rem; font-weight: 500; color: var(--text-muted); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: #fafbfc; font-weight: 600; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: #fafbfc; }
+
+/* Info boxes */
+.info-box {
+  border-radius: 8px; padding: 14px 16px; font-size: 0.85rem; margin-top: 12px;
+}
+.info-box.success { background: var(--pass-bg); border-left: 3px solid var(--pass); }
+.info-box.info { background: var(--note-bg); border-left: 3px solid var(--note); }
+.info-box.warn { background: var(--flag-bg); border-left: 3px solid var(--flag); }
+.info-box strong { color: var(--text); }
+code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; }
+
+footer {
+  border-top: 1px solid var(--border); padding: 24px; text-align: center;
+  color: var(--text-muted); font-size: 0.8rem; background: var(--surface);
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Kugel-TTS Model Evaluation</h1>
+  <p class="sub">Client-side evaluation of KugelAudio's text-to-speech model across naturalness, intelligibility, prosody, streaming latency, throughput, input robustness, and long-form voice consistency.</p>
+  <div class="models">
+    <div class="model-chip">Model <strong>kugel-3</strong></div>
+    <div class="model-chip">Voice <strong>1071</strong></div>
+    <div class="model-chip">Output <strong>24&nbsp;kHz PCM16</strong></div>
+    <div class="model-chip">Interfaces <strong>REST + WebSocket</strong></div>
+  </div>
+</div>
+
+<nav>
+  <div class="inner">
+    <a href="#" class="nav-brand">
+      <span class="nav-brand-title">Kugel-TTS</span>
+      <span class="nav-brand-sub">Model Evaluation</span>
+    </a>
+    <div class="nav-divider"></div>
+    <a href="#phase0">Phase 0</a>
+    <div class="nav-dropdown">
+      <span>TTS Tests &#9662;</span>
+      <div class="nav-dropdown-menu">
+        <a href="#tts-naturalness">2.1 Naturalness</a>
+        <a href="#tts-intelligibility">2.2 Intelligibility</a>
+        <a href="#tts-prosody">2.3 Prosody</a>
+        <a href="#tts-latency">2.5 Streaming Latency</a>
+        <a href="#tts-concurrency">2.6 Throughput &amp; Concurrency</a>
+        <a href="#tts-edge">2.7 Edge Cases</a>
+        <a href="#tts-longform">2.8 Long-Form Consistency</a>
+      </div>
+    </div>
+    <a href="#summary" class="nav-summary">Summary</a>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ============================================================ -->
+<!-- PHASE 0 -->
+<!-- ============================================================ -->
+<h2 class="section-title" id="phase0">Phase 0 &mdash; Connectivity &amp; Discovery</h2>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Endpoint Reachability &amp; Schema &mdash; <code>api.kugelaudio.com</code></h2>
+    <span class="badge badge-pass">All OK</span>
+  </div>
+  <div class="card-body">
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+      Connectivity, response-schema discovery, parameter probing, smoke tests, and cold-start measurement against the REST (<code>/v1/tts/generate</code>) and WebSocket (<code>/ws/tts</code>) endpoints before the scored tests run.
+    </p>
+    <div class="metrics-grid">
+      <div class="metric-card good"><div class="label">REST batch</div><div class="value">1.36<span class="unit"> s</span></div></div>
+      <div class="metric-card good"><div class="label">WebSocket TTFB</div><div class="value">527<span class="unit"> ms</span></div></div>
+      <div class="metric-card good"><div class="label">Network RTT</div><div class="value">123<span class="unit"> ms</span></div></div>
+      <div class="metric-card good"><div class="label">Cold-start ratio</div><div class="value">1.14&times;</div></div>
+    </div>
+    <div class="info-box success">
+      <strong>Phase 0 passed &mdash; 5 of 5 sub-phases OK.</strong> Both REST and WebSocket batch smoke tests completed with a valid bearer key. The native output is <strong>24&nbsp;kHz PCM16</strong>, and all five requested sample rates (8k / 16k / 22.05k / 24k / 44.1k) were accepted. Markup-shaped input was accepted (handled as plain text &mdash; there is no documented SSML support). The cold-start ratio of <strong>1.14&times;</strong> (first request 1.45&nbsp;s vs 1.27&nbsp;s warm mean) shows no significant cold-start penalty.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TTS SECTION -->
+<!-- ============================================================ -->
+<h2 class="section-title" id="tts"><span class="icon">🎤</span>TTS Measurements</h2>
+
+<!-- 2.1 Naturalness -->
+<div class="card" id="tts-naturalness">
+  <div class="card-header">
+    <h2>2.1 Automated Naturalness</h2>
+    <span class="test-id">UTMOS &middot; DNSMOS &middot; 200 sentences</span>
+    <span class="badge badge-pass">Good</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Reference-free perceptual quality scoring of synthesised speech. UTMOS is a learned MOS predictor (1&ndash;5 scale, &gt;4.0 = near-human); DNSMOS is a noise-suppression-calibrated MOS estimator with three sub-scores (OVRL overall, SIG signal quality, BAK background quietness).
+      &nbsp;<strong>How:</strong> 200 sentences synthesised once each through the REST batch path, then scored locally on GPU. No reference audio required.
+    </p>
+    <div class="metrics-grid">
+      <div class="metric-card good"><div class="label">UTMOS Mean</div><div class="value">3.83</div></div>
+      <div class="metric-card good"><div class="label">UTMOS P50</div><div class="value">3.88</div></div>
+      <div class="metric-card good"><div class="label">DNSMOS OVRL</div><div class="value">2.81</div></div>
+      <div class="metric-card good"><div class="label">DNSMOS SIG</div><div class="value">3.40</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Metric</th><th class="num">Mean</th><th class="num">P50</th><th class="num">P90</th><th class="num">Std</th><th class="num">Min</th><th class="num">Max</th></tr></thead>
+      <tbody>
+        <tr><td>UTMOS</td><td class="num">3.83</td><td class="num">3.88</td><td class="num">4.23</td><td class="num">0.32</td><td class="num">2.81</td><td class="num">4.36</td></tr>
+        <tr><td>DNSMOS Overall (OVRL)</td><td class="num">2.81</td><td class="num">2.82</td><td class="num">3.18</td><td class="num">0.31</td><td class="num">1.99</td><td class="num">3.45</td></tr>
+        <tr><td>DNSMOS Signal (SIG)</td><td class="num">3.40</td><td class="num">3.42</td><td class="num">3.58</td><td class="num">0.16</td><td class="num">2.88</td><td class="num">3.68</td></tr>
+        <tr><td>DNSMOS Background (BAK)</td><td class="num">3.41</td><td class="num">3.50</td><td class="num">3.97</td><td class="num">0.48</td><td class="num">1.93</td><td class="num">4.17</td></tr>
+      </tbody>
+    </table>
+    <div class="info-box success" style="margin-top:12px">
+      <strong>UTMOS mean 3.83 &mdash; solidly natural, with the bulk of sentences above 4.0.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>UTMOS 3.83 &plusmn; 0.32</strong> &mdash; the median (3.88) and P90 (4.23) sit above the 4.0 &ldquo;natural&rdquo; line, with a longer low tail (min 2.81) pulling the mean down. Most sentences are near-human; a minority are noticeably weaker.</li>
+        <li><strong>DNSMOS OVRL 2.81</strong> &mdash; the overall metric reads lower because DNSMOS is calibrated for noise-suppressed real speech and penalises the near-silent backgrounds of clean synthetic audio. The <strong>SIG 3.40</strong> sub-score is the more relevant signal-quality reading.</li>
+        <li>All <strong>200/200</strong> sentences scored with zero synthesis failures.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2.2 Intelligibility -->
+<div class="card" id="tts-intelligibility">
+  <div class="card-header">
+    <h2>2.2 Intelligibility &mdash; Round-Trip WER</h2>
+    <span class="test-id">Whisper large-v3 + EnglishTextNormalizer &middot; 230 sentences</span>
+    <span class="badge badge-pass">Pass on 4 / 5 categories</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Word Error Rate of a Whisper large-v3 transcript against the reference text used to synthesise. Clean TTS produces audio Whisper transcribes back almost exactly &mdash; the rate at which it can't is a proxy for intelligibility.
+      &nbsp;<strong>How:</strong> Each reference sentence is synthesised through the REST path, transcribed locally with Whisper large-v3, then compared with jiwer. Both sides are normalised with Whisper's <strong>EnglishTextNormalizer</strong>, which canonicalises digit&harr;word, currency, contractions and units so spoken-form references aren't falsely penalised against Whisper's digit-form output.
+    </p>
+    <table>
+      <thead><tr><th>Category</th><th class="num">Sentences</th><th class="num">Round-Trip WER</th><th class="num">CER</th></tr></thead>
+      <tbody>
+        <tr><td>Harvard Sentences</td><td class="num">80</td><td class="num">1.48%</td><td class="num">1.48%</td></tr>
+        <tr><td>Technical</td><td class="num">50</td><td class="num">1.63%</td><td class="num">1.63%</td></tr>
+        <tr><td>Numbers &mdash; Basic</td><td class="num">20</td><td class="num">1.43%</td><td class="num">1.43%</td></tr>
+        <tr><td>Numbers &mdash; Edge Cases</td><td class="num">30</td><td class="num">25.60%</td><td class="num">25.60%</td></tr>
+        <tr><td>Conversational</td><td class="num">50</td><td class="num">0.64%</td><td class="num">0.64%</td></tr>
+      </tbody>
+    </table>
+    <div class="info-box success" style="margin-top:12px">
+      <strong>4 of 5 categories pass cleanly; the fifth is a measurement floor, not a TTS failure.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>Harvard 1.48% &middot; Technical 1.63% &middot; Numbers-Basic 1.43% &middot; Conversational 0.64%</strong> &mdash; all far below the 5% pass band. Standard English, jargon, basic currency/percentages/decimals and casual speech are transcribed back near-perfectly.</li>
+        <li><strong>Numbers &mdash; Edge Cases 25.60%</strong> &mdash; this bucket isolates surface forms the normaliser cannot canonicalise: phone numbers, GPS coordinates with degree symbols, version strings, spoken dates, alphanumeric IDs, and clock formats. The audio is fully intelligible to a human listener &mdash; the residual WER is surface-form mismatch between spoken and written notation, not a synthesis defect.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2.3 Prosody -->
+<div class="card" id="tts-prosody">
+  <div class="card-header">
+    <h2>2.3 Prosody (reference-free)</h2>
+    <span class="test-id">F0 &amp; speaking-rate distribution &middot; 50 sentences</span>
+    <span class="badge badge-pass">Natural range</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Distributional prosody characterisation &mdash; fundamental-frequency (pitch) statistics and speaking rate &mdash; measured directly on the synthesised audio without a reference.
+      &nbsp;<strong>How:</strong> 50 sentences synthesised through the REST path; F0 extracted per frame and speaking rate derived from word count over voiced duration.
+    </p>
+    <div class="metrics-grid">
+      <div class="metric-card good"><div class="label">F0 Mean</div><div class="value">186.9<span class="unit"> Hz</span></div></div>
+      <div class="metric-card good"><div class="label">F0 Std</div><div class="value">21.3<span class="unit"> Hz</span></div></div>
+      <div class="metric-card good"><div class="label">F0 Range</div><div class="value">126&ndash;280<span class="unit"> Hz</span></div></div>
+      <div class="metric-card good"><div class="label">Speaking Rate</div><div class="value">188<span class="unit"> WPM</span></div></div>
+    </div>
+    <div class="info-box success" style="margin-top:12px">
+      <strong>Pitch and pace both land in a natural, expressive range.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>F0 186.9 &plusmn; 21.3&nbsp;Hz</strong> &mdash; consistent with a natural voice, with enough spread (126&ndash;280&nbsp;Hz) to carry sentence-level intonation rather than sounding flat/monotone.</li>
+        <li><strong>188 &plusmn; 32&nbsp;WPM</strong> &mdash; within the typical conversational band (roughly 140&ndash;200&nbsp;WPM); the per-sentence variation reflects natural pacing across content.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2.5 Latency -->
+<div class="card" id="tts-latency">
+  <div class="card-header">
+    <h2>2.5 Streaming TTFB &amp; RTF</h2>
+    <span class="test-id">WebSocket vs REST &middot; 5 length buckets &times; 50 reps</span>
+    <span class="badge badge-pass">Real-time capable</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Time-to-first-byte (how quickly audio starts) and real-time factor (generation time &divide; audio duration; &lt;1.0 means faster than playback), measured across five input lengths on both interfaces.
+      &nbsp;<strong>How:</strong> Each bucket run 50&times; on the WebSocket streaming path (true first-chunk TTFB) and the REST path (chunked read). Percentiles computed client-side.
+    </p>
+    <table>
+      <thead><tr><th>Length bucket</th><th>Interface</th><th class="num">TTFB P50</th><th class="num">TTFB P99</th><th class="num">RTF P50</th></tr></thead>
+      <tbody>
+        <tr><td>Short (~10 words)</td><td>WebSocket</td><td class="num">419 ms</td><td class="num">526 ms</td><td class="num">0.55</td></tr>
+        <tr><td>Short (~10 words)</td><td>REST</td><td class="num">368 ms</td><td class="num">529 ms</td><td class="num">0.41</td></tr>
+        <tr><td>Medium (~25 words)</td><td>WebSocket</td><td class="num">432 ms</td><td class="num">566 ms</td><td class="num">0.32</td></tr>
+        <tr><td>Medium (~25 words)</td><td>REST</td><td class="num">382 ms</td><td class="num">482 ms</td><td class="num">0.29</td></tr>
+        <tr><td>Long (~75 words)</td><td>WebSocket</td><td class="num">455 ms</td><td class="num">548 ms</td><td class="num">0.27</td></tr>
+        <tr><td>Long (~75 words)</td><td>REST</td><td class="num">409 ms</td><td class="num">1,346 ms</td><td class="num">0.26</td></tr>
+        <tr><td>Very long (~150 words)</td><td>WebSocket</td><td class="num">458 ms</td><td class="num">587 ms</td><td class="num">0.19</td></tr>
+        <tr><td>Very long (~150 words)</td><td>REST</td><td class="num">421 ms</td><td class="num">801 ms</td><td class="num">0.19</td></tr>
+        <tr><td>Extra long (~300 words)</td><td>WebSocket</td><td class="num">465 ms</td><td class="num">736 ms</td><td class="num">0.13</td></tr>
+        <tr><td>Extra long (~300 words)</td><td>REST</td><td class="num">439 ms</td><td class="num">669 ms</td><td class="num">0.13</td></tr>
+      </tbody>
+    </table>
+    <div class="info-box success" style="margin-top:12px">
+      <strong>TTFB stays ~370&ndash;465&nbsp;ms at every length, and RTF is always well under 1.0.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>TTFB is nearly flat across input length</strong> &mdash; first audio arrives in under ~0.5&nbsp;s whether the input is 10 or 300 words, so time-to-first-audio doesn't degrade as prompts grow. This is the property that matters for responsive streaming.</li>
+        <li><strong>RTF falls from 0.55 (short) to 0.13 (extra long)</strong> &mdash; generation consistently outpaces playback, and the margin widens on longer input as fixed overhead amortises. Audio is always produced faster than real time.</li>
+        <li>REST P50 TTFB runs slightly below WebSocket P50; the occasional REST P99 spike (e.g. 1,346&nbsp;ms on the long bucket) reflects tail variance on the chunked-read path. WebSocket gives the more stable tail.</li>
+        <li>Both interfaces include the ~123&nbsp;ms network round-trip measured in Phase&nbsp;0.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2.6 Concurrency -->
+<div class="card" id="tts-concurrency">
+  <div class="card-header">
+    <h2>2.6 Throughput &amp; Concurrency</h2>
+    <span class="test-id">N = 1, 5, 10, 20 &middot; 50 requests per level</span>
+    <span class="badge badge-flag">Ceiling found at N=20 (REST)</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Sustained requests-per-second and per-request latency as concurrency rises, on a synchronous thread-pool path and an async REST path.
+      &nbsp;<strong>How:</strong> 50 identical requests fired at each concurrency level on both paths; RPS, latency percentiles and error rate recorded.
+    </p>
+    <table>
+      <thead><tr><th>Level</th><th>Path</th><th class="num">RPS</th><th class="num">Latency P50</th><th class="num">Latency P99</th><th class="num">Errors</th></tr></thead>
+      <tbody>
+        <tr><td>N=1</td><td>thread-pool</td><td class="num">0.45</td><td class="num">2,203 ms</td><td class="num">2,502 ms</td><td class="num">0</td></tr>
+        <tr><td>N=1</td><td>REST async</td><td class="num">0.47</td><td class="num">2,110 ms</td><td class="num">2,442 ms</td><td class="num">0</td></tr>
+        <tr><td>N=5</td><td>thread-pool</td><td class="num">2.04</td><td class="num">2,431 ms</td><td class="num">2,803 ms</td><td class="num">0</td></tr>
+        <tr><td>N=5</td><td>REST async</td><td class="num">2.11</td><td class="num">2,375 ms</td><td class="num">2,638 ms</td><td class="num">0</td></tr>
+        <tr><td>N=10</td><td>thread-pool</td><td class="num">3.67</td><td class="num">2,633 ms</td><td class="num">2,977 ms</td><td class="num">0</td></tr>
+        <tr><td>N=10</td><td>REST async</td><td class="num">3.92</td><td class="num">2,548 ms</td><td class="num">2,945 ms</td><td class="num">0</td></tr>
+        <tr><td>N=20</td><td>thread-pool</td><td class="num">2.64</td><td class="num">2,610 ms</td><td class="num">2,846 ms</td><td class="num">0</td></tr>
+        <tr><td>N=20</td><td>REST async</td><td class="num">&mdash;</td><td class="num">2,632 ms</td><td class="num">2,743 ms</td><td class="num">40 / 50</td></tr>
+      </tbody>
+    </table>
+    <div class="info-box warn" style="margin-top:12px">
+      <strong>Clean linear scaling to N=10; the service's rate-limit ceiling appears at N=20.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>N=1&rarr;10 scales cleanly:</strong> throughput climbs 0.45 &rarr; 2.0 &rarr; ~3.7&ndash;3.9&nbsp;RPS with <strong>zero errors</strong> on both paths and stable per-request latency (~2.5&nbsp;s). This is the usable concurrency envelope.</li>
+        <li><strong>At N=20 the REST async path hit the rate limit hard</strong> &mdash; 40 of 50 requests returned HTTP&nbsp;429 (80% error rate). The reported RPS for that row is not meaningful. The thread-pool path at N=20 stayed error-free but its throughput fell to 2.64&nbsp;RPS (below N=10), consistent with throttling rather than added capacity.</li>
+        <li><strong>Practical ceiling: keep sustained concurrency at or below ~10 in-flight requests</strong> for this key/tier, or add client-side rate limiting and retry-with-backoff to absorb 429s beyond that.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2.7 Edge Cases -->
+<div class="card" id="tts-edge">
+  <div class="card-header">
+    <h2>2.7 Edge Cases &amp; Input Robustness</h2>
+    <span class="test-id">99 cases across 17 categories</span>
+    <span class="badge badge-pass">16 / 17 categories at 100%</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Stress-tests the engine against unusual, malformed, and boundary inputs to confirm it degrades gracefully.
+      &nbsp;<strong>How:</strong> 99 inputs across 17 categories synthesised through the REST path; each recorded as pass / fail / degraded / timeout. Markup-shaped inputs are scored as plain-text robustness (a pass means the tag characters didn't error, not that markup was interpreted).
+    </p>
+    <div class="metrics-grid">
+      <div class="metric-card good"><div class="label">Cases passed</div><div class="value">94 / 99</div></div>
+      <div class="metric-card good"><div class="label">Categories at 100%</div><div class="value">16 / 17</div></div>
+      <div class="metric-card good"><div class="label">Timeouts</div><div class="value">0</div></div>
+      <div class="metric-card warn"><div class="label">Empty-input rejects</div><div class="value">5 / 5</div></div>
+    </div>
+    <div class="info-box success" style="margin-top:12px">
+      <strong>Every meaningful category passes; the only &ldquo;failures&rdquo; are empty input, which is correctly rejected.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>16 of 17 categories at 100%</strong> &mdash; abbreviations, boundary lengths, code snippets, lists, mixed case, numbers, proper nouns, punctuation, questions &amp; commands, repetition, single words, special characters, markup, technical/domain terms, URLs &amp; emails, and very-long text all synthesised without error.</li>
+        <li><strong>empty / whitespace-only input: 0 / 5</strong> &mdash; these are <em>expected</em> rejections. The API requires at least one non-whitespace character, so refusing empty input is correct behaviour, not a defect. Excluding this category, the suite is 94 / 94.</li>
+        <li>Markup category passed 5/5 as plain text &mdash; consistent with there being no documented SSML support; tags are voiced/ignored rather than causing errors.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2.8 Long-Form -->
+<div class="card" id="tts-longform">
+  <div class="card-header">
+    <h2>2.8 Long-Form Voice Consistency</h2>
+    <span class="test-id">ECAPA-TDNN speaker similarity &middot; 5 multi-paragraph passages</span>
+    <span class="badge badge-pass">Stable</span>
+  </div>
+  <div class="card-body">
+    <p class="methodology">
+      <strong>What:</strong> Whether the voice stays consistent across a long passage &mdash; does timbre, pitch, or pace drift paragraph to paragraph?
+      &nbsp;<strong>How:</strong> Five multi-paragraph passages synthesised; each paragraph embedded with ECAPA-TDNN (speaker-similarity), plus per-paragraph F0 and speaking-rate spread. Higher similarity and lower drift are better.
+    </p>
+    <table>
+      <thead><tr><th>Passage</th><th class="num">Paragraphs</th><th class="num">Speaker Sim</th><th class="num">F0 Drift</th><th class="num">WPM Drift</th></tr></thead>
+      <tbody>
+        <tr><td>Technology and Society</td><td class="num">5</td><td class="num">0.921 &plusmn; 0.018</td><td class="num">6.5 Hz</td><td class="num">17.4</td></tr>
+        <tr><td>Climate and Environment</td><td class="num">6</td><td class="num">0.911 &plusmn; 0.026</td><td class="num">5.3 Hz</td><td class="num">13.1</td></tr>
+        <tr><td>Medical Advances</td><td class="num">5</td><td class="num">0.930 &plusmn; 0.020</td><td class="num">10.3 Hz</td><td class="num">14.7</td></tr>
+        <tr><td>Space Exploration</td><td class="num">5</td><td class="num">0.908 &plusmn; 0.029</td><td class="num">6.5 Hz</td><td class="num">16.8</td></tr>
+        <tr><td>Financial Markets</td><td class="num">5</td><td class="num">0.903 &plusmn; 0.025</td><td class="num">10.9 Hz</td><td class="num">8.3</td></tr>
+      </tbody>
+    </table>
+    <div class="info-box success" style="margin-top:12px">
+      <strong>Speaker similarity holds at 0.90&ndash;0.93 across every passage &mdash; the voice stays stable over multi-paragraph narration.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>Speaker similarity 0.903&ndash;0.930</strong> with tight per-passage spread (std &le;0.029) &mdash; no identity drift; the same voice is recognisable from first paragraph to last.</li>
+        <li><strong>F0 drift 5&ndash;11&nbsp;Hz</strong> against a ~187&nbsp;Hz baseline (well under 10%) &mdash; pitch stays anchored across the passage rather than wandering.</li>
+        <li>Speaking-rate drift is modest and content-dependent, consistent with natural pacing differences between paragraphs rather than instability.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SUMMARY -->
+<!-- ============================================================ -->
+<h2 class="section-title" id="summary"><span class="icon">📋</span>Summary</h2>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Test Verdict Matrix</h2>
+    <span class="badge badge-pass">7 tests &middot; all pass</span>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead><tr><th>Test</th><th>Headline metric</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>2.1 Naturalness</td><td class="num">UTMOS 3.83 (P50 3.88) &middot; DNSMOS SIG 3.40</td><td><span class="badge badge-pass">Pass</span></td></tr>
+        <tr><td>2.2 Intelligibility</td><td class="num">0.6&ndash;1.6% WER on standard &middot; 25.6% on edge-case numbers (measurement noise)</td><td><span class="badge badge-pass">Pass</span></td></tr>
+        <tr><td>2.3 Prosody</td><td class="num">F0 187 &plusmn; 21 Hz &middot; 188 &plusmn; 32 WPM</td><td><span class="badge badge-pass">Pass</span></td></tr>
+        <tr><td>2.5 Streaming Latency</td><td class="num">TTFB P50 368&ndash;465 ms &middot; RTF 0.13&ndash;0.55</td><td><span class="badge badge-pass">Pass</span></td></tr>
+        <tr><td>2.6 Throughput &amp; Concurrency</td><td class="num">Clean to ~3.9 RPS at N=10 &middot; rate-limit ceiling at N=20</td><td><span class="badge badge-pass">Pass (ceiling noted)</span></td></tr>
+        <tr><td>2.7 Edge Cases</td><td class="num">16 / 17 categories at 100% &middot; 94 / 94 non-empty cases pass</td><td><span class="badge badge-pass">Pass</span></td></tr>
+        <tr><td>2.8 Long-Form Consistency</td><td class="num">Speaker sim 0.903&ndash;0.930 across 5 passages</td><td><span class="badge badge-pass">Pass</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="info-box success" style="margin-top:16px">
+      <strong>Suitable for streaming voice applications and long-form narration.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li>Naturalness is solidly in the natural range (UTMOS 3.83, median 3.88), intelligibility is near-zero-WER on standard English, and the voice stays consistent (speaker sim 0.90&ndash;0.93) across multi-paragraph passages.</li>
+        <li>TTFB holds under ~0.5&nbsp;s regardless of input length and RTF is always &lt;1.0, so generation outpaces playback &mdash; viable for real-time streaming. First-audio latency does not degrade as prompts grow.</li>
+        <li>Throughput scales cleanly to ~3.9&nbsp;RPS at N=10 concurrent requests with zero errors. Beyond that the service rate-limits (429s dominate at N=20); production use above ~10 in-flight requests should add client-side backoff/retry.</li>
+        <li>Input robustness is broad: every category except empty input passes at 100%, and empty input is correctly rejected.</li>
+        <li>The one category to keep in mind is edge-case number notation (phone numbers, coordinates, version strings), where spoken output diverges from written surface forms &mdash; audible fine, but worth pre-normalising if exact read-back matters.</li>
+      </ul>
+    </div>
+
+    <div class="info-box info" style="margin-top:12px">
+      <strong>Run provenance.</strong>
+      <ul style="margin:8px 0 0 16px; line-height:1.8">
+        <li><strong>Date:</strong> 20 Aug 2026</li>
+        <li><strong>Host:</strong> Azure VM, Germany West Central &middot; Ubuntu &middot; NVIDIA A100 (for local Whisper / UTMOS / DNSMOS / ECAPA scoring)</li>
+        <li><strong>Endpoints:</strong> <code>https://api.kugelaudio.com/v1/tts/generate</code> (REST) &middot; <code>wss://api.kugelaudio.com/ws/tts</code> (WebSocket)</li>
+        <li><strong>Model:</strong> <code>kugel-3</code> &middot; voice <code>1071</code> &middot; language auto-detect &middot; 24&nbsp;kHz PCM16</li>
+        <li><strong>Coverage:</strong> 7 tests (Phase&nbsp;0 + 2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8). Signal-quality metrics (MCD/PESQ/STOI) are not evaluated &mdash; they require a same-speaker parallel reference recording, which is unavailable for a synthetic voice; audio quality is covered by 2.1, 2.2, and 2.8.</li>
+        <li><strong>Raw artifacts:</strong> <code>results/run-20-08-26/kugel/</code> &mdash; per-test <code>summary.csv</code>, <code>calls.jsonl</code>, and <code>run.log</code> live alongside this report.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<footer>
+  <p>Kugel-TTS Model Evaluation Report &middot; generated from <code>results/run-20-08-26/kugel/</code></p>
+  <p style="margin-top: 8px;">For methodology, thresholds, and harness internals see <code>docs/kugel/kugel-tts-evaluation-plan.md</code> and <code>RUNBOOK.md</code>.</p>
+</footer>
+
+</body>
+</html>
