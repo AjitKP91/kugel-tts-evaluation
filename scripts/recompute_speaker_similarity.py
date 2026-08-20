@@ -12,8 +12,12 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import tempfile
 from pathlib import Path
+
+# Make `import eval` work when run as `python scripts/recompute_speaker_similarity.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import soundfile as sf

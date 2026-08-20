@@ -30,7 +30,12 @@ import argparse
 import json
 import logging
 import re
+import sys
 from pathlib import Path
+
+# Make `import eval` work whether this is run as `python scripts/clone_reference_voice.py`
+# (which puts scripts/ on sys.path, not the repo root) or `python -m scripts.…`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import soundfile as sf
